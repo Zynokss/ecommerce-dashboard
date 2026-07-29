@@ -16,7 +16,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({ data }) => {
   const Icon = getIcon();
 
   return (
-    <div className="relative overflow-hidden bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs hover:border-indigo-500/40 dark:hover:border-indigo-500/40 transition-all duration-200 group">
+    <div className="relative overflow-hidden bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs hover:border-indigo-500/40 dark:hover:border-indigo-500/40 transition-all duration-200 group">
       {/* Top Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:scale-105 transition-transform">
@@ -44,11 +44,11 @@ export const MetricCard: React.FC<MetricCardProps> = ({ data }) => {
         <p className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">
           {data.title}
         </p>
-        <div className="flex items-baseline justify-between">
-          <h3 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+        <div className="flex items-baseline justify-between gap-2">
+          <h3 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-white">
             {data.value}
           </h3>
-          <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+          <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500 shrink-0">
             vs {data.timeframe.toLowerCase()}
           </span>
         </div>

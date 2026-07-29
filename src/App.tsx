@@ -25,6 +25,7 @@ import { ArrowUpRight, ArrowDownRight, Globe2, Users2, TrendingUp, BarChart2, Se
 export function App() {
   const [activeTab, setActiveTab] = useState<string>('home');
   const [darkMode, setDarkMode] = useState<boolean>(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   // Filter States for Explore (Catalog Grid) Tab
@@ -151,15 +152,17 @@ export function App() {
     <div className="min-h-screen flex bg-slate-50 dark:bg-[#0b0f17] transition-colors duration-200">
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
 
-      {/* Sidebar Navigation */}
+      {/* Sidebar Navigation (Mobile-ready Drawer) */}
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
-        deletedCount={deletedProducts.length} 
+        deletedCount={deletedProducts.length}
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 px-8 py-8 overflow-y-auto">
+      <main className="flex-1 px-4 sm:px-8 py-6 sm:py-8 overflow-y-auto w-full min-w-0">
         <div className="max-w-[1400px] mx-auto">
           <Header
             userName="Zynoks"
@@ -168,12 +171,13 @@ export function App() {
             setActiveTab={setActiveTab}
             products={products}
             orders={orders}
+            onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           />
 
           {/* TAB 1: Dashboard View */}
           {activeTab === 'home' && (
-            <div className="space-y-8">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div className="space-y-6 sm:space-y-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {mockMetrics.map((metric, idx) => (
                   <MetricCard key={idx} data={metric} />
                 ))}
@@ -181,7 +185,7 @@ export function App() {
 
               <RevenueChart data={mockRevenueChart} />
 
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8">
                 <div className="lg:col-span-7">
                   <TopProductsTable 
                     products={products} 
@@ -190,7 +194,7 @@ export function App() {
                 </div>
 
                 <div className="lg:col-span-5 space-y-6">
-                  <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+                  <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                         <Globe2 className="w-4 h-4 text-indigo-500" />
@@ -227,7 +231,7 @@ export function App() {
                     </div>
                   </div>
 
-                  <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
+                  <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                         <Users2 className="w-4 h-4 text-indigo-500" />
@@ -267,16 +271,16 @@ export function App() {
 
           {/* TAB 2: Analytics View */}
           {activeTab === 'analytics' && (
-            <div className="space-y-8">
+            <div className="space-y-6 sm:space-y-8">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Analytics & Performance</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Analytics & Performance</h2>
                 <p className="text-xs font-medium text-slate-400 dark:text-slate-500 mt-1">
                   Deep-dive revenue streams, customer conversion metrics, and growth indicators.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
+                <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
                   <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-indigo-500" /> Conversion Funnel Rate
                   </h3>
@@ -311,12 +315,12 @@ export function App() {
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
+                <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
                   <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     <BarChart2 className="w-4 h-4 text-indigo-500" /> Average Order Value (AOV)
                   </h3>
                   <div className="flex items-baseline gap-3">
-                    <span className="text-4xl font-extrabold text-slate-900 dark:text-white">$148.50</span>
+                    <span className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">$148.50</span>
                     <span className="text-xs font-bold text-emerald-500">+8.4% vs last month</span>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
@@ -333,7 +337,7 @@ export function App() {
           {activeTab === 'explore' && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Catalog Visual Grid</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Catalog Visual Grid</h2>
                 <p className="text-xs font-medium text-slate-400 dark:text-slate-500 mt-1">
                   Explore storefront inventory items in visual card grid layout.
                 </p>
@@ -371,19 +375,19 @@ export function App() {
 
               {/* Product Cards Grid */}
               {filteredExploreProducts.length === 0 ? (
-                <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-12 text-center text-slate-400 border border-slate-200/80 dark:border-slate-800/80">
+                <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-8 sm:p-12 text-center text-slate-400 border border-slate-200/80 dark:border-slate-800/80">
                   <Package className="w-10 h-10 mx-auto mb-3 opacity-50 text-slate-400" />
                   <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No catalog products found</p>
                   <p className="text-xs text-slate-400 mt-1">Try resetting your search or category filter criteria.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
                   {filteredExploreProducts.map((product) => (
                     <div
                       key={product.id}
                       className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-slate-200/80 dark:border-slate-800/80 overflow-hidden shadow-xs hover:border-indigo-500/40 transition-all group"
                     >
-                      <div className="h-48 overflow-hidden bg-slate-100 dark:bg-slate-800 relative">
+                      <div className="h-44 sm:h-48 overflow-hidden bg-slate-100 dark:bg-slate-800 relative">
                         <img
                           src={product.image}
                           alt={product.name}
@@ -394,7 +398,7 @@ export function App() {
                         </span>
                       </div>
 
-                      <div className="p-5 space-y-3">
+                      <div className="p-4 sm:p-5 space-y-3">
                         <h3 className="font-bold text-slate-900 dark:text-white text-sm line-clamp-1">
                           {product.name}
                         </h3>
@@ -410,7 +414,7 @@ export function App() {
                                 : 'bg-rose-50 text-rose-500 dark:bg-rose-950/50 dark:text-rose-400'
                             }`}
                           >
-                            {product.stockCount} units left
+                            {product.stockCount} left
                           </span>
                         </div>
                       </div>
