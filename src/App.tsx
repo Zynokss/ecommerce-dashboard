@@ -11,7 +11,8 @@ import { SupportView } from './components/SupportView';
 import { TeamAccessView } from './components/TeamAccessView';
 import { TrashView } from './components/TrashView';
 import { ToastContainer, type ToastMessage } from './components/Toast';
-import type { Product, Order } from './types';
+import type { Product, Order, MetricCardData } from './types';
+import { fetchLiveMetrics } from './lib/dashboardService';
 import {
   mockMetrics,
   mockRevenueChart,
@@ -27,6 +28,10 @@ export function App() {
   const [darkMode, setDarkMode] = useState<boolean>(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  // Supabase Live Metrics State
+  const [metrics, setMetrics] = useState<MetricCardData[]>(mockMetrics);
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState<boolean>(true);
 
   // Filter States for Explore (Catalog Grid) Tab
   const [exploreSearch, setExploreSearch] = useState<string>('');
@@ -49,6 +54,18 @@ export function App() {
     const saved = localStorage.getItem('zynboard_orders');
     return saved ? JSON.parse(saved) : mockRecentOrders;
   });
+
+  // Fetch Live Metrics from Supabase on component mount
+  useEffect(() => {
+    async function loadMetrics() {
+      const liveData = await fetchLiveMetrics();
+      if (liveData && liveData.length > 0) {
+        setMetrics(liveData);
+      }
+      setIsLoadingMetrics(false);
+    }
+    loadMetrics();
+  }, []);
 
   // Sync state to LocalStorage
   useEffect(() => {
@@ -178,8 +195,14 @@ export function App() {
           {activeTab === 'home' && (
             <div className="space-y-6 sm:space-y-8">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                {mockMetrics.map((metric, idx) => (
-                  <MetricCard key={idx} data={metric} />
+                {metrics.map((metric, idx) => (
+                  <MetricCard
+                    key={idx}
+                    data={{
+                      ...metric,
+                      value: isLoadingMetrics ? '...' : metric.value,
+                    }}
+                  />
                 ))}
               </div>
 
