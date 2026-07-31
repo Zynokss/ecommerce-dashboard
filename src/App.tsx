@@ -19,14 +19,8 @@ import {
   updateProductInDb,
   deleteProductFromDb,
 } from './lib/productService';
-import {
-  mockMetrics,
-  mockRevenueChart,
-  mockCountries,
-  mockTopCustomers,
-  mockRecentOrders,
-} from './mockData';
-import { ArrowUpRight, ArrowDownRight, Globe2, Users2, TrendingUp, BarChart2, Search, Package } from 'lucide-react';
+import { mockRevenueChart } from './mockData';
+import { TrendingUp, BarChart2, Search, Package } from 'lucide-react';
 
 export function App() {
   const [activeTab, setActiveTab] = useState<string>('home');
@@ -35,7 +29,11 @@ export function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   // Supabase Live Metrics State
-  const [metrics, setMetrics] = useState<MetricCardData[]>(mockMetrics);
+  const [metrics, setMetrics] = useState<MetricCardData[]>([
+    { title: 'TOTAL CUSTOMER', value: '0', change: '+0%', isPositive: true, timeframe: 'this month' },
+    { title: 'TOTAL REVENUE', value: '$0.00', change: '+0%', isPositive: true, timeframe: 'this month' },
+    { title: 'TOTAL DEALS', value: '0', change: '+0%', isPositive: true, timeframe: 'this month' },
+  ]);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState<boolean>(true);
 
   // Filter States for Explore (Catalog Grid) Tab
@@ -54,7 +52,7 @@ export function App() {
   // Orders State with LocalStorage fallback
   const [orders, setOrders] = useState<Order[]>(() => {
     const saved = localStorage.getItem('zynboard_orders');
-    return saved ? JSON.parse(saved) : mockRecentOrders;
+    return saved ? JSON.parse(saved) : [];
   });
 
   // Fetch Live Metrics from Supabase
@@ -230,86 +228,11 @@ export function App() {
 
               <RevenueChart data={mockRevenueChart} />
 
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8">
-                <div className="lg:col-span-7">
-                  <TopProductsTable 
-                    products={products} 
-                    onSeeAll={() => setActiveTab('shop')} 
-                  />
-                </div>
-
-                <div className="lg:col-span-5 space-y-6">
-                  <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <Globe2 className="w-4 h-4 text-indigo-500" />
-                        Regional Sales Breakdown
-                      </h3>
-                      <span className="text-[11px] font-bold text-emerald-500">+14.2% overall</span>
-                    </div>
-
-                    <div className="space-y-3">
-                      {mockCountries.map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-2.5">
-                            <img
-                              src={`https://flagcdn.com/24x18/${item.code}.png`}
-                              alt={item.country}
-                              className="w-4 h-3 rounded-xs object-cover"
-                            />
-                            <span className="font-semibold text-slate-700 dark:text-slate-300">
-                              {item.country}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {item.trend === 'up' ? (
-                              <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500" />
-                            ) : (
-                              <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />
-                            )}
-                            <span className="font-bold text-slate-900 dark:text-white">
-                              {item.salesCount}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                        <Users2 className="w-4 h-4 text-indigo-500" />
-                        Top VIP Customers
-                      </h3>
-                    </div>
-
-                    <div className="space-y-3.5">
-                      {mockTopCustomers.map((customer) => (
-                        <div key={customer.id} className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={customer.avatar}
-                              alt={customer.name}
-                              className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700"
-                            />
-                            <div>
-                              <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                {customer.name}
-                              </h4>
-                              <p className="text-[10px] font-medium text-slate-400">
-                                {customer.purchasesCount} orders placed
-                              </p>
-                            </div>
-                          </div>
-                          <span className="text-xs font-bold text-slate-900 dark:text-white">
-                            ${(customer.totalSpent / 1000).toFixed(2)}K
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+              <div className="w-full">
+                <TopProductsTable 
+                  products={products} 
+                  onSeeAll={() => setActiveTab('shop')} 
+                />
               </div>
             </div>
           )}
@@ -333,28 +256,28 @@ export function App() {
                     <div>
                       <div className="flex justify-between font-semibold mb-1 text-slate-700 dark:text-slate-300">
                         <span>Store Visits</span>
-                        <span>142.8K</span>
+                        <span>0</span>
                       </div>
                       <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                        <div className="bg-indigo-600 h-2 rounded-full w-[85%]"></div>
+                        <div className="bg-indigo-600 h-2 rounded-full w-[0%]"></div>
                       </div>
                     </div>
                     <div>
                       <div className="flex justify-between font-semibold mb-1 text-slate-700 dark:text-slate-300">
                         <span>Added to Cart</span>
-                        <span>38.4K</span>
+                        <span>0</span>
                       </div>
                       <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                        <div className="bg-indigo-500 h-2 rounded-full w-[55%]"></div>
+                        <div className="bg-indigo-500 h-2 rounded-full w-[0%]"></div>
                       </div>
                     </div>
                     <div>
                       <div className="flex justify-between font-semibold mb-1 text-slate-700 dark:text-slate-300">
                         <span>Completed Checkout</span>
-                        <span>12.9K</span>
+                        <span>0</span>
                       </div>
                       <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                        <div className="bg-emerald-500 h-2 rounded-full w-[32%]"></div>
+                        <div className="bg-emerald-500 h-2 rounded-full w-[0%]"></div>
                       </div>
                     </div>
                   </div>
@@ -365,11 +288,11 @@ export function App() {
                     <BarChart2 className="w-4 h-4 text-indigo-500" /> Average Order Value (AOV)
                   </h3>
                   <div className="flex items-baseline gap-3">
-                    <span className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">$148.50</span>
-                    <span className="text-xs font-bold text-emerald-500">+8.4% vs last month</span>
+                    <span className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">$0.00</span>
+                    <span className="text-xs font-bold text-emerald-500">+0.0% vs last month</span>
                   </div>
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Higher conversion driven primarily by bundled Streetwear & Cyberpunk apparel collections.
+                    Live analytics generated from real store transactions.
                   </p>
                 </div>
               </div>
