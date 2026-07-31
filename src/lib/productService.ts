@@ -30,20 +30,22 @@ export async function fetchProducts(): Promise<Product[]> {
 }
 
 export async function createProductInDb(productData: Omit<Product, 'id'>) {
-  const slug = productData.name
+  // Generate a clean slug
+  const slug = (productData.name || 'product')
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-');
 
+  // Explicit payload formatted for Supabase / PostgreSQL schema
   const payload: Record<string, any> = {
     id: `prod_${Date.now()}`,
     name: productData.name,
     slug: slug,
-    category: productData.category,
-    price: productData.price,
-    description: productData.description || productData.name,
+    category: productData.category || 'Uncategorized',
+    price: Number(productData.price) || 0,
+    description: productData.description || productData.name || '',
     sizes: ['S', 'M', 'L', 'XL'],
     images: productData.image ? [productData.image] : [],
     inStock: productData.stockStatus === 'In Stock',
@@ -57,7 +59,7 @@ export async function createProductInDb(productData: Omit<Product, 'id'>) {
     .select();
 
   if (error) {
-    console.error('Error creating product in Supabase:', error);
+    console.error('SUPABASE DB INSERT ERROR:', error.message, error.details, error.hint);
     throw error;
   }
 
@@ -68,8 +70,8 @@ export async function updateProductInDb(product: Product) {
   const payload: Record<string, any> = {
     name: product.name,
     category: product.category,
-    price: product.price,
-    description: product.description || product.name,
+    price: Number(product.price) || 0,
+    description: product.description || product.name || '',
     images: product.image ? [product.image] : [],
     inStock: product.stockStatus === 'In Stock',
     updatedAt: new Date().toISOString(),
@@ -82,7 +84,7 @@ export async function updateProductInDb(product: Product) {
     .select();
 
   if (error) {
-    console.error('Error updating product in Supabase:', error);
+    console.error('SUPABASE DB UPDATE ERROR:', error.message, error.details, error.hint);
     throw error;
   }
 
@@ -96,7 +98,7 @@ export async function deleteProductFromDb(id: string) {
     .eq('id', id);
 
   if (error) {
-    console.error('Error deleting product from Supabase:', error);
+    console.error('SUPABASE DB DELETE ERROR:', error.message, error.details, error.hint);
     throw error;
   }
 }
