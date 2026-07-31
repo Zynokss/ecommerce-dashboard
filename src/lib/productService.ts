@@ -30,7 +30,8 @@ export async function fetchProducts(): Promise<Product[]> {
 }
 
 export async function createProductInDb(productData: Omit<Product, 'id'>) {
-  // Pass an explicit unique string ID for the primary key constraint
+  const now = new Date().toISOString();
+
   const payload: Record<string, any> = {
     id: `prod_${Date.now()}`,
     name: productData.name,
@@ -39,6 +40,8 @@ export async function createProductInDb(productData: Omit<Product, 'id'>) {
     description: productData.description || productData.name || '',
     images: productData.image ? [productData.image] : [],
     inStock: productData.stockStatus === 'In Stock',
+    createdAt: now,
+    updatedAt: now,
   };
 
   const { data, error } = await supabase
@@ -62,6 +65,7 @@ export async function updateProductInDb(product: Product) {
     description: product.description || product.name || '',
     images: product.image ? [product.image] : [],
     inStock: product.stockStatus === 'In Stock',
+    updatedAt: new Date().toISOString(),
   };
 
   const { data, error } = await supabase
