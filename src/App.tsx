@@ -11,7 +11,7 @@ import { SupportView } from './components/SupportView';
 import { TeamAccessView } from './components/TeamAccessView';
 import { TrashView } from './components/TrashView';
 import { ToastContainer, type ToastMessage } from './components/Toast';
-import type { Product, Order, MetricCardData } from './types';
+import type { Product, Order, MetricCardData, RevenueChartPoint } from './types';
 import { fetchLiveMetrics } from './lib/dashboardService';
 import {
   fetchProducts,
@@ -19,7 +19,6 @@ import {
   updateProductInDb,
   deleteProductFromDb,
 } from './lib/productService';
-import { mockRevenueChart } from './mockData';
 import { TrendingUp, BarChart2, Search, Package } from 'lucide-react';
 
 export function App() {
@@ -35,6 +34,16 @@ export function App() {
     { title: 'TOTAL DEALS', value: '0', change: '+0%', isPositive: true, timeframe: 'this month', bgColor: 'white' },
   ]);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState<boolean>(true);
+
+  // Default clean revenue chart data (no mockData.ts import needed)
+  const [revenueChartData] = useState<RevenueChartPoint[]>([
+    { month: 'Jan', firstHalf: 0, topGross: 0 },
+    { month: 'Feb', firstHalf: 0, topGross: 0 },
+    { month: 'Mar', firstHalf: 0, topGross: 0 },
+    { month: 'Apr', firstHalf: 0, topGross: 0 },
+    { month: 'May', firstHalf: 0, topGross: 0 },
+    { month: 'Jun', firstHalf: 0, topGross: 0 },
+  ]);
 
   // Filter States for Explore (Catalog Grid) Tab
   const [exploreSearch, setExploreSearch] = useState<string>('');
@@ -226,7 +235,7 @@ export function App() {
                 ))}
               </div>
 
-              <RevenueChart data={mockRevenueChart} />
+              <RevenueChart data={revenueChartData} />
 
               <div className="w-full">
                 <TopProductsTable 
@@ -297,7 +306,7 @@ export function App() {
                 </div>
               </div>
 
-              <RevenueChart data={mockRevenueChart} />
+              <RevenueChart data={revenueChartData} />
             </div>
           )}
 

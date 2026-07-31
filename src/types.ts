@@ -19,16 +19,13 @@ export interface Product {
   id: string;
   name: string;
   category: string;
-  image: string;
-  stockStatus: 'In Stock' | 'Out of Stock' | 'Low Stock';
-  stockCount: number;
   price: number;
+  description?: string; // Add this line if missing
+  image: string;
+  stockCount: number;
+  stockStatus: 'In Stock' | 'Low Stock' | 'Out of Stock';
   totalSales: number;
-  variants?: {
-    sizes: string[];
-    colors: string[];
-  };
-}
+  }
 
 // --- Order & Fulfillment Management ---
 export interface Order {

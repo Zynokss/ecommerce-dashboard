@@ -30,23 +30,34 @@ export async function fetchProducts(): Promise<Product[]> {
 }
 
 export async function createProductInDb(productData: Omit<Product, 'id'>) {
+  const slug = productData.name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-');
+
+  const payload: Record<string, any> = {
+    id: `prod_${Date.now()}`,
+    name: productData.name,
+    slug: slug,
+    category: productData.category,
+    price: productData.price,
+    description: productData.description || productData.name,
+    sizes: ['S', 'M', 'L', 'XL'],
+    images: productData.image ? [productData.image] : [],
+    inStock: productData.stockStatus === 'In Stock',
+    totalSales: 0,
+    updatedAt: new Date().toISOString(),
+  };
+
   const { data, error } = await supabase
     .from('Product')
-    .insert([
-      {
-        name: productData.name,
-        category: productData.category,
-        price: productData.price,
-        description: productData.name,
-        sizes: ['S', 'M', 'L', 'XL'],
-        images: [productData.image],
-        inStock: productData.stockStatus === 'In Stock',
-      },
-    ])
+    .insert([payload])
     .select();
 
   if (error) {
-    console.error('Error creating product:', error);
+    console.error('Error creating product in Supabase:', error);
     throw error;
   }
 
@@ -54,20 +65,24 @@ export async function createProductInDb(productData: Omit<Product, 'id'>) {
 }
 
 export async function updateProductInDb(product: Product) {
+  const payload: Record<string, any> = {
+    name: product.name,
+    category: product.category,
+    price: product.price,
+    description: product.description || product.name,
+    images: product.image ? [product.image] : [],
+    inStock: product.stockStatus === 'In Stock',
+    updatedAt: new Date().toISOString(),
+  };
+
   const { data, error } = await supabase
     .from('Product')
-    .update({
-      name: product.name,
-      category: product.category,
-      price: product.price,
-      images: [product.image],
-      inStock: product.stockStatus === 'In Stock',
-    })
+    .update(payload)
     .eq('id', product.id)
     .select();
 
   if (error) {
-    console.error('Error updating product:', error);
+    console.error('Error updating product in Supabase:', error);
     throw error;
   }
 
@@ -81,7 +96,7 @@ export async function deleteProductFromDb(id: string) {
     .eq('id', id);
 
   if (error) {
-    console.error('Error deleting product:', error);
+    console.error('Error deleting product from Supabase:', error);
     throw error;
   }
 }
