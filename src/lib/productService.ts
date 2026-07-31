@@ -1,16 +1,5 @@
 import { supabase } from './supabase';
-
-// Explicitly define Product shape so VS Code never gets confused
-export interface Product {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  description?: string;
-  image: string;
-  stockCount: number;
-  stockStatus: 'In Stock' | 'Low Stock' | 'Out of Stock';
-}
+import type { Product } from '../types';
 
 export async function fetchProducts(): Promise<Product[]> {
   const { data, error } = await supabase
@@ -36,6 +25,7 @@ export async function fetchProducts(): Promise<Product[]> {
       : 'https://images.unsplash.com/photo-1523381294911-8d3cead13475?w=500&auto=format&fit=crop',
     stockCount: item.inStock ? 50 : 0,
     stockStatus: item.inStock ? 'In Stock' : 'Low Stock',
+    totalSales: Number(item.totalSales || 0),
   }));
 }
 

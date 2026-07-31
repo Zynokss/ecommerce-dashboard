@@ -30,9 +30,9 @@ export function App() {
 
   // Supabase Live Metrics State
   const [metrics, setMetrics] = useState<MetricCardData[]>([
-    { title: 'TOTAL CUSTOMER', value: '0', change: '+0%', isPositive: true, timeframe: 'this month' },
-    { title: 'TOTAL REVENUE', value: '$0.00', change: '+0%', isPositive: true, timeframe: 'this month' },
-    { title: 'TOTAL DEALS', value: '0', change: '+0%', isPositive: true, timeframe: 'this month' },
+    { title: 'TOTAL CUSTOMER', value: '0', change: '+0%', isPositive: true, timeframe: 'this month', bgColor: 'sky' },
+    { title: 'TOTAL REVENUE', value: '$0.00', change: '+0%', isPositive: true, timeframe: 'this month', bgColor: 'mint' },
+    { title: 'TOTAL DEALS', value: '0', change: '+0%', isPositive: true, timeframe: 'this month', bgColor: 'white' },
   ]);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState<boolean>(true);
 
