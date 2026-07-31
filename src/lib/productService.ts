@@ -30,8 +30,9 @@ export async function fetchProducts(): Promise<Product[]> {
 }
 
 export async function createProductInDb(productData: Omit<Product, 'id'>) {
-  // Only include columns that actually exist in your Supabase 'Product' table
+  // Pass an explicit unique string ID for the primary key constraint
   const payload: Record<string, any> = {
+    id: `prod_${Date.now()}`,
     name: productData.name,
     category: productData.category || 'Uncategorized',
     price: Number(productData.price) || 0,
