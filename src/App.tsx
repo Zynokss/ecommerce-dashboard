@@ -14,9 +14,14 @@ import { ToastContainer, type ToastMessage } from './components/Toast';
 import type { Product, Order, MetricCardData } from './types';
 import { fetchLiveMetrics } from './lib/dashboardService';
 import {
+  fetchProducts,
+  createProductInDb,
+  updateProductInDb,
+  deleteProductFromDb,
+} from './lib/productService';
+import {
   mockMetrics,
   mockRevenueChart,
-  mockProducts,
   mockCountries,
   mockTopCustomers,
   mockRecentOrders,
@@ -37,25 +42,22 @@ export function App() {
   const [exploreSearch, setExploreSearch] = useState<string>('');
   const [exploreCategory, setExploreCategory] = useState<string>('All');
 
-  // 1. Initialize Active Products with LocalStorage
-  const [products, setProducts] = useState<Product[]>(() => {
-    const saved = localStorage.getItem('zynboard_products');
-    return saved ? JSON.parse(saved) : mockProducts;
-  });
+  // Products State (Loaded from Supabase)
+  const [products, setProducts] = useState<Product[]>([]);
 
-  // 2. Initialize Deleted Trash Bin with LocalStorage
+  // Deleted Trash Bin with LocalStorage
   const [deletedProducts, setDeletedProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('zynboard_trash_products');
     return saved ? JSON.parse(saved) : [];
   });
 
-  // 3. Initialize Orders with LocalStorage
+  // Orders State with LocalStorage fallback
   const [orders, setOrders] = useState<Order[]>(() => {
     const saved = localStorage.getItem('zynboard_orders');
     return saved ? JSON.parse(saved) : mockRecentOrders;
   });
 
-  // Fetch Live Metrics from Supabase on component mount
+  // Fetch Live Metrics from Supabase
   useEffect(() => {
     async function loadMetrics() {
       const liveData = await fetchLiveMetrics();
@@ -67,11 +69,16 @@ export function App() {
     loadMetrics();
   }, []);
 
-  // Sync state to LocalStorage
+  // Fetch Products from Supabase Database
   useEffect(() => {
-    localStorage.setItem('zynboard_products', JSON.stringify(products));
-  }, [products]);
+    async function loadProducts() {
+      const dbProducts = await fetchProducts();
+      setProducts(dbProducts);
+    }
+    loadProducts();
+  }, []);
 
+  // Sync Trash & Orders to LocalStorage
   useEffect(() => {
     localStorage.setItem('zynboard_trash_products', JSON.stringify(deletedProducts));
   }, [deletedProducts]);
@@ -80,7 +87,7 @@ export function App() {
     localStorage.setItem('zynboard_orders', JSON.stringify(orders));
   }, [orders]);
 
-  // Sync dark class on document element & body
+  // Sync Dark Mode
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -105,19 +112,29 @@ export function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Product Actions
-  const handleAddProduct = (newProdData: Omit<Product, 'id'>) => {
-    const newProduct: Product = { ...newProdData, id: `prod-${Date.now()}` };
-    setProducts([newProduct, ...products]);
-    addToast(`"${newProduct.name}" created successfully!`);
+  // Async Product Actions connected to Supabase
+  const handleAddProduct = async (newProdData: Omit<Product, 'id'>) => {
+    try {
+      const created = await createProductInDb(newProdData);
+      const newProduct: Product = { ...newProdData, id: created.id };
+      setProducts([newProduct, ...products]);
+      addToast(`"${newProduct.name}" created and synced to store!`);
+    } catch (err) {
+      addToast('Failed to sync product to database.', 'error');
+    }
   };
 
-  const handleUpdateProduct = (updatedProduct: Product) => {
-    setProducts(products.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)));
-    addToast(`"${updatedProduct.name}" updated successfully!`);
+  const handleUpdateProduct = async (updatedProduct: Product) => {
+    try {
+      await updateProductInDb(updatedProduct);
+      setProducts(products.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)));
+      addToast(`"${updatedProduct.name}" updated successfully!`);
+    } catch (err) {
+      addToast('Failed to update product in database.', 'error');
+    }
   };
 
-  // Soft Delete: Move from active products -> trash bin
+  // Soft Delete
   const handleDeleteProduct = (id: string) => {
     const prod = products.find((p) => p.id === id);
     if (!prod) return;
@@ -127,7 +144,7 @@ export function App() {
     addToast(`Moved "${prod.name}" to Trash Bin.`, 'info');
   };
 
-  // Restore: Move from trash bin -> active products
+  // Restore Product
   const handleRestoreProduct = (id: string) => {
     const prod = deletedProducts.find((p) => p.id === id);
     if (!prod) return;
@@ -138,13 +155,18 @@ export function App() {
   };
 
   // Permanent Delete
-  const handlePermanentDeleteProduct = (id: string) => {
+  const handlePermanentDeleteProduct = async (id: string) => {
     const prod = deletedProducts.find((p) => p.id === id);
-    setDeletedProducts(deletedProducts.filter((p) => p.id !== id));
-    addToast(`Permanently deleted "${prod?.name || 'Product'}".`, 'error');
+    try {
+      await deleteProductFromDb(id);
+      setDeletedProducts(deletedProducts.filter((p) => p.id !== id));
+      addToast(`Permanently deleted "${prod?.name || 'Product'}".`, 'error');
+    } catch (err) {
+      addToast('Failed to delete product from database.', 'error');
+    }
   };
 
-  // Empty Trash
+  // Clear Trash
   const handleClearTrash = () => {
     setDeletedProducts([]);
     addToast('Trash bin cleared permanently.', 'error');
@@ -155,7 +177,7 @@ export function App() {
     addToast(`Order #${orderId.toUpperCase()} status updated to ${newStatus}.`);
   };
 
-  // Filter products for Catalog Grid tab
+  // Filter products for Catalog Grid
   const exploreCategories = ['All', ...Array.from(new Set(products.map((p) => p.category)))];
   const filteredExploreProducts = products.filter((p) => {
     const matchesSearch =
@@ -169,7 +191,7 @@ export function App() {
     <div className="min-h-screen flex bg-slate-50 dark:bg-[#0b0f17] transition-colors duration-200">
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
 
-      {/* Sidebar Navigation (Mobile-ready Drawer) */}
+      {/* Sidebar Navigation */}
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -356,7 +378,7 @@ export function App() {
             </div>
           )}
 
-          {/* TAB 3: Catalog Grid with Interactive Search & Filters */}
+          {/* TAB 3: Catalog Grid */}
           {activeTab === 'explore' && (
             <div className="space-y-6">
               <div>
@@ -366,7 +388,6 @@ export function App() {
                 </p>
               </div>
 
-              {/* Filter & Search Bar */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 backdrop-blur-xl">
                 <div className="relative w-full sm:w-80">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -396,7 +417,6 @@ export function App() {
                 </div>
               </div>
 
-              {/* Product Cards Grid */}
               {filteredExploreProducts.length === 0 ? (
                 <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-8 sm:p-12 text-center text-slate-400 border border-slate-200/80 dark:border-slate-800/80">
                   <Package className="w-10 h-10 mx-auto mb-3 opacity-50 text-slate-400" />
