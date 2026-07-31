@@ -30,27 +30,14 @@ export async function fetchProducts(): Promise<Product[]> {
 }
 
 export async function createProductInDb(productData: Omit<Product, 'id'>) {
-  // Generate a clean slug
-  const slug = (productData.name || 'product')
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-');
-
-  // Explicit payload formatted for Supabase / PostgreSQL schema
+  // Only include columns that actually exist in your Supabase 'Product' table
   const payload: Record<string, any> = {
-    id: `prod_${Date.now()}`,
     name: productData.name,
-    slug: slug,
     category: productData.category || 'Uncategorized',
     price: Number(productData.price) || 0,
     description: productData.description || productData.name || '',
-    sizes: ['S', 'M', 'L', 'XL'],
     images: productData.image ? [productData.image] : [],
     inStock: productData.stockStatus === 'In Stock',
-    totalSales: 0,
-    updatedAt: new Date().toISOString(),
   };
 
   const { data, error } = await supabase
@@ -74,7 +61,6 @@ export async function updateProductInDb(product: Product) {
     description: product.description || product.name || '',
     images: product.image ? [product.image] : [],
     inStock: product.stockStatus === 'In Stock',
-    updatedAt: new Date().toISOString(),
   };
 
   const { data, error } = await supabase
