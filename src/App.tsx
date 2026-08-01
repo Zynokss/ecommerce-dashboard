@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
+import { LoginView } from './components/LoginView';
 import { MetricCard } from './components/MetricCard';
 import { RevenueChart } from './components/RevenueChart';
 import { TopProductsTable } from './components/TopProductsTable';
@@ -19,9 +20,22 @@ import {
   updateProductInDb,
   deleteProductFromDb,
 } from './lib/productService';
-import { TrendingUp, BarChart2, Search, Package } from 'lucide-react';
+import { Search } from 'lucide-react';
+
+interface AdminSession {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+}
 
 export function App() {
+  // 🔐 ADMIN AUTH STATE
+  const [currentAdmin, setCurrentAdmin] = useState<AdminSession | null>(() => {
+    const saved = localStorage.getItem('zynboard_admin_session');
+    return saved ? JSON.parse(saved) : null;
+  });
+
   const [activeTab, setActiveTab] = useState<string>('home');
   const [darkMode, setDarkMode] = useState<boolean>(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
@@ -35,7 +49,6 @@ export function App() {
   ]);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState<boolean>(true);
 
-  // Default clean revenue chart data (no mockData.ts import needed)
   const [revenueChartData] = useState<RevenueChartPoint[]>([
     { month: 'Jan', firstHalf: 0, topGross: 0 },
     { month: 'Feb', firstHalf: 0, topGross: 0 },
@@ -45,27 +58,29 @@ export function App() {
     { month: 'Jun', firstHalf: 0, topGross: 0 },
   ]);
 
-  // Filter States for Explore (Catalog Grid) Tab
   const [exploreSearch, setExploreSearch] = useState<string>('');
   const [exploreCategory, setExploreCategory] = useState<string>('All');
-
-  // Products State (Loaded from Supabase)
   const [products, setProducts] = useState<Product[]>([]);
 
-  // Deleted Trash Bin with LocalStorage
   const [deletedProducts, setDeletedProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('zynboard_trash_products');
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Orders State with LocalStorage fallback
   const [orders, setOrders] = useState<Order[]>(() => {
     const saved = localStorage.getItem('zynboard_orders');
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Fetch Live Metrics from Supabase
+  // Logout Handler
+  const handleLogout = () => {
+    localStorage.removeItem('zynboard_admin_session');
+    setCurrentAdmin(null);
+  };
+
+  // Fetch Live Metrics
   useEffect(() => {
+    if (!currentAdmin) return;
     async function loadMetrics() {
       const liveData = await fetchLiveMetrics();
       if (liveData && liveData.length > 0) {
@@ -74,18 +89,18 @@ export function App() {
       setIsLoadingMetrics(false);
     }
     loadMetrics();
-  }, []);
+  }, [currentAdmin]);
 
-  // Fetch Products from Supabase Database
+  // Fetch Products
   useEffect(() => {
+    if (!currentAdmin) return;
     async function loadProducts() {
       const dbProducts = await fetchProducts();
       setProducts(dbProducts);
     }
     loadProducts();
-  }, []);
+  }, [currentAdmin]);
 
-  // Sync Trash & Orders to LocalStorage
   useEffect(() => {
     localStorage.setItem('zynboard_trash_products', JSON.stringify(deletedProducts));
   }, [deletedProducts]);
@@ -94,7 +109,6 @@ export function App() {
     localStorage.setItem('zynboard_orders', JSON.stringify(orders));
   }, [orders]);
 
-  // Sync Dark Mode
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -105,7 +119,6 @@ export function App() {
     }
   }, [darkMode]);
 
-  // Toast Handler
   const addToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const newToast: ToastMessage = {
       id: `toast-${Date.now()}`,
@@ -119,14 +132,13 @@ export function App() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Async Product Actions connected to Supabase
   const handleAddProduct = async (newProdData: Omit<Product, 'id'>) => {
     try {
       const created = await createProductInDb(newProdData);
       const newProduct: Product = { ...newProdData, id: created.id };
       setProducts([newProduct, ...products]);
       addToast(`"${newProduct.name}" created and synced to store!`);
-    } catch (err) {
+    } catch {
       addToast('Failed to sync product to database.', 'error');
     }
   };
@@ -136,12 +148,11 @@ export function App() {
       await updateProductInDb(updatedProduct);
       setProducts(products.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)));
       addToast(`"${updatedProduct.name}" updated successfully!`);
-    } catch (err) {
+    } catch {
       addToast('Failed to update product in database.', 'error');
     }
   };
 
-  // Soft Delete
   const handleDeleteProduct = (id: string) => {
     const prod = products.find((p) => p.id === id);
     if (!prod) return;
@@ -151,7 +162,6 @@ export function App() {
     addToast(`Moved "${prod.name}" to Trash Bin.`, 'info');
   };
 
-  // Restore Product
   const handleRestoreProduct = (id: string) => {
     const prod = deletedProducts.find((p) => p.id === id);
     if (!prod) return;
@@ -161,19 +171,17 @@ export function App() {
     addToast(`Restored "${prod.name}" to inventory!`);
   };
 
-  // Permanent Delete
   const handlePermanentDeleteProduct = async (id: string) => {
     const prod = deletedProducts.find((p) => p.id === id);
     try {
       await deleteProductFromDb(id);
       setDeletedProducts(deletedProducts.filter((p) => p.id !== id));
       addToast(`Permanently deleted "${prod?.name || 'Product'}".`, 'error');
-    } catch (err) {
+    } catch {
       addToast('Failed to delete product from database.', 'error');
     }
   };
 
-  // Clear Trash
   const handleClearTrash = () => {
     setDeletedProducts([]);
     addToast('Trash bin cleared permanently.', 'error');
@@ -184,7 +192,6 @@ export function App() {
     addToast(`Order #${orderId.toUpperCase()} status updated to ${newStatus}.`);
   };
 
-  // Filter products for Catalog Grid
   const exploreCategories = ['All', ...Array.from(new Set(products.map((p) => p.category)))];
   const filteredExploreProducts = products.filter((p) => {
     const matchesSearch =
@@ -194,11 +201,16 @@ export function App() {
     return matchesSearch && matchesCat;
   });
 
+  // 🔒 IF NOT LOGGED IN, RENDER LOGIN VIEW
+  if (!currentAdmin) {
+    return <LoginView onLoginSuccess={(admin) => setCurrentAdmin(admin)} />;
+  }
+
+  // 🔓 LOGGED IN DASHBOARD
   return (
     <div className="min-h-screen flex bg-slate-50 dark:bg-[#0b0f17] transition-colors duration-200">
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
 
-      {/* Sidebar Navigation */}
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -207,17 +219,17 @@ export function App() {
         onClose={() => setIsMobileMenuOpen(false)}
       />
 
-      {/* Main Content Area */}
       <main className="flex-1 px-4 sm:px-8 py-6 sm:py-8 overflow-y-auto w-full min-w-0">
         <div className="max-w-[1400px] mx-auto">
           <Header
-            userName="Zynoks"
+            userName={currentAdmin.name}
             darkMode={darkMode}
             setDarkMode={setDarkMode}
             setActiveTab={setActiveTab}
             products={products}
             orders={orders}
             onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+            onLogout={handleLogout}
           />
 
           {/* TAB 1: Dashboard View */}
@@ -251,61 +263,7 @@ export function App() {
             <div className="space-y-6 sm:space-y-8">
               <div>
                 <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Analytics & Performance</h2>
-                <p className="text-xs font-medium text-slate-400 dark:text-slate-500 mt-1">
-                  Deep-dive revenue streams, customer conversion metrics, and growth indicators.
-                </p>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-indigo-500" /> Conversion Funnel Rate
-                  </h3>
-                  <div className="space-y-3 text-xs">
-                    <div>
-                      <div className="flex justify-between font-semibold mb-1 text-slate-700 dark:text-slate-300">
-                        <span>Store Visits</span>
-                        <span>0</span>
-                      </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                        <div className="bg-indigo-600 h-2 rounded-full w-[0%]"></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between font-semibold mb-1 text-slate-700 dark:text-slate-300">
-                        <span>Added to Cart</span>
-                        <span>0</span>
-                      </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                        <div className="bg-indigo-500 h-2 rounded-full w-[0%]"></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between font-semibold mb-1 text-slate-700 dark:text-slate-300">
-                        <span>Completed Checkout</span>
-                        <span>0</span>
-                      </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                        <div className="bg-emerald-500 h-2 rounded-full w-[0%]"></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800/80 shadow-xs space-y-4">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <BarChart2 className="w-4 h-4 text-indigo-500" /> Average Order Value (AOV)
-                  </h3>
-                  <div className="flex items-baseline gap-3">
-                    <span className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white">$0.00</span>
-                    <span className="text-xs font-bold text-emerald-500">+0.0% vs last month</span>
-                  </div>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Live analytics generated from real store transactions.
-                  </p>
-                </div>
-              </div>
-
               <RevenueChart data={revenueChartData} />
             </div>
           )}
@@ -313,14 +271,7 @@ export function App() {
           {/* TAB 3: Catalog Grid */}
           {activeTab === 'explore' && (
             <div className="space-y-6">
-              <div>
-                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">Catalog Visual Grid</h2>
-                <p className="text-xs font-medium text-slate-400 dark:text-slate-500 mt-1">
-                  Explore storefront inventory items in visual card grid layout.
-                </p>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 backdrop-blur-xl">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800/80">
                 <div className="relative w-full sm:w-80">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                   <input
@@ -328,10 +279,11 @@ export function App() {
                     placeholder="Search catalog products..."
                     value={exploreSearch}
                     onChange={(e) => setExploreSearch(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-slate-100"
                   />
                 </div>
 
+                {/* Category Pills */}
                 <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
                   {exploreCategories.map((cat) => (
                     <button
@@ -349,58 +301,17 @@ export function App() {
                 </div>
               </div>
 
-              {filteredExploreProducts.length === 0 ? (
-                <div className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-8 sm:p-12 text-center text-slate-400 border border-slate-200/80 dark:border-slate-800/80">
-                  <Package className="w-10 h-10 mx-auto mb-3 opacity-50 text-slate-400" />
-                  <p className="text-sm font-bold text-slate-700 dark:text-slate-300">No catalog products found</p>
-                  <p className="text-xs text-slate-400 mt-1">Try resetting your search or category filter criteria.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-                  {filteredExploreProducts.map((product) => (
-                    <div
-                      key={product.id}
-                      className="bg-white dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-slate-200/80 dark:border-slate-800/80 overflow-hidden shadow-xs hover:border-indigo-500/40 transition-all group"
-                    >
-                      <div className="h-44 sm:h-48 overflow-hidden bg-slate-100 dark:bg-slate-800 relative">
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        />
-                        <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-900/80 text-white backdrop-blur-xs">
-                          {product.category}
-                        </span>
-                      </div>
-
-                      <div className="p-4 sm:p-5 space-y-3">
-                        <h3 className="font-bold text-slate-900 dark:text-white text-sm line-clamp-1">
-                          {product.name}
-                        </h3>
-
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-extrabold text-slate-900 dark:text-white text-base">
-                            ${product.price.toFixed(2)}
-                          </span>
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                              product.stockStatus === 'In Stock'
-                                ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400'
-                                : 'bg-rose-50 text-rose-500 dark:bg-rose-950/50 dark:text-rose-400'
-                            }`}
-                          >
-                            {product.stockCount} left
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                {filteredExploreProducts.map((product) => (
+                  <div key={product.id} className="bg-white dark:bg-slate-900/60 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800/80">
+                    <h3 className="font-bold text-slate-900 dark:text-white text-sm">{product.name}</h3>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* TAB 4: Products Table View */}
+          {/* TAB 4: Products View */}
           {activeTab === 'shop' && (
             <ProductsView
               products={products}
@@ -424,7 +335,7 @@ export function App() {
           {/* TAB 8: Team Access View */}
           {activeTab === 'users' && <TeamAccessView />}
 
-          {/* TAB 9: Trash Recovery View */}
+          {/* TAB 9: Trash View */}
           {activeTab === 'trash' && (
             <TrashView
               deletedProducts={deletedProducts}

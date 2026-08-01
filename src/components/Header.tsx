@@ -32,6 +32,7 @@ interface HeaderProps {
   products?: Product[];
   orders?: Order[];
   onOpenMobileMenu?: () => void;
+  onLogout?: () => void; // 👈 1. Added optional onLogout prop interface
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -43,6 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
   products = [],
   orders = [],
   onOpenMobileMenu,
+  onLogout, // 👈 2. Destructured onLogout prop
 }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -113,6 +115,17 @@ export const Header: React.FC<HeaderProps> = ({
     setGlobalSearch('');
   };
 
+  const handleSignOut = () => {
+    setIsProfileOpen(false);
+    if (onLogout) {
+      onLogout();
+    } else {
+      // Fallback clear if onLogout prop is not provided
+      localStorage.removeItem('zynboard_admin_session');
+      window.location.reload();
+    }
+  };
+
   return (
     <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8 relative">
       {/* Title & Mobile Toggle */}
@@ -172,8 +185,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {isSearchOpen && (
-      <div className="fixed left-4 right-4 sm:absolute sm:left-auto sm:right-0 mt-2 sm:w-96 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-      <div className="relative flex items-center">
+              <div className="fixed left-4 right-4 sm:absolute sm:left-auto sm:right-0 mt-2 sm:w-96 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="relative flex items-center">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3" />
                   <input
                     type="text"
@@ -327,7 +340,7 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full ring-2 ring-white dark:ring-slate-900"></span>
             </button>
 
-           {isNotifOpen && (
+            {isNotifOpen && (
               <div className="fixed left-4 right-4 sm:absolute sm:left-auto sm:right-0 sm:w-80 mt-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-4 z-50 text-xs animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                   <span className="font-bold text-slate-900 dark:text-white">Store Alerts</span>
@@ -434,8 +447,9 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
 
               <div className="border-t border-slate-100 dark:border-slate-800 pt-1 mt-1">
+                {/* 👈 3. Replaced alert with handleSignOut handler */}
                 <button
-                  onClick={() => alert('Logging out...')}
+                  onClick={handleSignOut}
                   className="w-full flex items-center gap-2.5 px-4 py-2 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors font-semibold cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
