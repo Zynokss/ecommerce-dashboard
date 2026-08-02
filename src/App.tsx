@@ -13,7 +13,7 @@ import { TeamAccessView } from './components/TeamAccessView';
 import { TrashView } from './components/TrashView';
 import { ToastContainer, type ToastMessage } from './components/Toast';
 import type { Product, Order, MetricCardData, RevenueChartPoint } from './types';
-import { fetchLiveMetrics } from './lib/dashboardService';
+import { fetchLiveMetrics, fetchLiveOrders, updateOrderStatusInDb } from './lib/dashboardService';
 import {
   fetchProducts,
   createProductInDb,
@@ -30,7 +30,6 @@ interface AdminSession {
 }
 
 export function App() {
-  // 🔐 ADMIN AUTH STATE
   const [currentAdmin, setCurrentAdmin] = useState<AdminSession | null>(() => {
     const saved = localStorage.getItem('zynboard_admin_session');
     return saved ? JSON.parse(saved) : null;
@@ -41,10 +40,9 @@ export function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  // Supabase Live Metrics State
   const [metrics, setMetrics] = useState<MetricCardData[]>([
     { title: 'TOTAL CUSTOMER', value: '0', change: '+0%', isPositive: true, timeframe: 'this month', bgColor: 'sky' },
-    { title: 'TOTAL REVENUE', value: '$0.00', change: '+0%', isPositive: true, timeframe: 'this month', bgColor: 'mint' },
+    { title: 'TOTAL REVENUE', value: '0.00 MAD', change: '+0%', isPositive: true, timeframe: 'this month', bgColor: 'mint' },
     { title: 'TOTAL DEALS', value: '0', change: '+0%', isPositive: true, timeframe: 'this month', bgColor: 'white' },
   ]);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState<boolean>(true);
@@ -67,18 +65,13 @@ export function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('zynboard_orders');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [orders, setOrders] = useState<Order[]>([]);
 
-  // Logout Handler
   const handleLogout = () => {
     localStorage.removeItem('zynboard_admin_session');
     setCurrentAdmin(null);
   };
 
-  // Fetch Live Metrics
   useEffect(() => {
     if (!currentAdmin) return;
     async function loadMetrics() {
@@ -91,7 +84,6 @@ export function App() {
     loadMetrics();
   }, [currentAdmin]);
 
-  // Fetch Products
   useEffect(() => {
     if (!currentAdmin) return;
     async function loadProducts() {
@@ -102,12 +94,21 @@ export function App() {
   }, [currentAdmin]);
 
   useEffect(() => {
-    localStorage.setItem('zynboard_trash_products', JSON.stringify(deletedProducts));
-  }, [deletedProducts]);
+    if (!currentAdmin) return;
+    async function loadOrders() {
+      try {
+        const liveOrders = await fetchLiveOrders();
+        setOrders(liveOrders);
+      } catch (err) {
+        console.error('Failed to load orders:', err);
+      }
+    }
+    loadOrders();
+  }, [currentAdmin]);
 
   useEffect(() => {
-    localStorage.setItem('zynboard_orders', JSON.stringify(orders));
-  }, [orders]);
+    localStorage.setItem('zynboard_trash_products', JSON.stringify(deletedProducts));
+  }, [deletedProducts]);
 
   useEffect(() => {
     if (darkMode) {
@@ -187,9 +188,17 @@ export function App() {
     addToast('Trash bin cleared permanently.', 'error');
   };
 
-  const handleUpdateOrderStatus = (orderId: string, newStatus: Order['status']) => {
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
     setOrders(orders.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o)));
-    addToast(`Order #${orderId.toUpperCase()} status updated to ${newStatus}.`);
+
+    try {
+      await updateOrderStatusInDb(orderId, newStatus);
+      addToast(`Order #${orderId.toUpperCase()} status updated to ${newStatus}.`);
+    } catch {
+      addToast('Failed to update order status in database.', 'error');
+      const liveOrders = await fetchLiveOrders();
+      setOrders(liveOrders);
+    }
   };
 
   const exploreCategories = ['All', ...Array.from(new Set(products.map((p) => p.category)))];
@@ -201,12 +210,10 @@ export function App() {
     return matchesSearch && matchesCat;
   });
 
-  // 🔒 IF NOT LOGGED IN, RENDER LOGIN VIEW
   if (!currentAdmin) {
     return <LoginView onLoginSuccess={(admin) => setCurrentAdmin(admin)} />;
   }
 
-  // 🔓 LOGGED IN DASHBOARD
   return (
     <div className="min-h-screen flex bg-slate-50 dark:bg-[#0b0f17] transition-colors duration-200">
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
@@ -283,7 +290,6 @@ export function App() {
                   />
                 </div>
 
-                {/* Category Pills */}
                 <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
                   {exploreCategories.map((cat) => (
                     <button

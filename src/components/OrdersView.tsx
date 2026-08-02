@@ -26,7 +26,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onUpdateOrderSta
       { key: 'id', label: 'Order ID' },
       { key: 'customerName', label: 'Customer Name' },
       { key: 'productName', label: 'Product Purchased' },
-      { key: 'amount', label: 'Amount ($)' },
+      { key: 'amount', label: 'Amount (MAD)' },
       { key: 'status', label: 'Order Status' },
       { key: 'date', label: 'Date Placed' },
     ];
@@ -67,12 +67,12 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onUpdateOrderSta
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
           {['All', 'Delivered', 'Processing', 'Pending', 'Cancelled'].map((status) => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 statusFilter === status
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
@@ -134,7 +134,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ orders, onUpdateOrderSta
                     </td>
 
                     <td className="py-4 px-4 font-bold text-slate-900 dark:text-white">
-                      ${order.amount.toFixed(2)}
+                      {order.amount.toFixed(2)} MAD
                     </td>
 
                     <td className="py-4 px-4 text-slate-500 dark:text-slate-400 font-medium">
