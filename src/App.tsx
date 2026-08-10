@@ -150,7 +150,7 @@ export function App() {
 
   const handleUpdateProduct = async (updatedProduct: Product) => {
     try {
-      const updated = await updateProductInDb(updatedProduct);
+      await updateProductInDb(updatedProduct);
       const freshProducts = await fetchProducts();
       setProducts(freshProducts);
       addToast(`"${updatedProduct.name}" updated successfully!`);
