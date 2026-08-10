@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { supabase } from '../lib/supabase';
 import { Lock, Mail, ShieldAlert } from 'lucide-react';
 
 interface LoginViewProps {
   onLoginSuccess: (admin: { id: string; name: string; email: string; role: string }) => void;
 }
+
+const API_BASE = import.meta.env.VITE_STORE_API_URL || 'http://localhost:3000/api';
 
 export function LoginView({ onLoginSuccess }: LoginViewProps) {
   const [email, setEmail] = useState('');
@@ -18,38 +19,32 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
     setIsLoading(true);
 
     try {
-      // Query specifically from AdminUser table (Separated from storefront User table)
-      const { data: admin, error: dbError } = await supabase
-        .from('AdminUser')
-        .select('id, name, email, password, role')
-        .eq('email', email.toLowerCase().trim())
-        .maybeSingle();
+      const res = await fetch(`${API_BASE}/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
+      });
 
-      if (dbError || !admin) {
-        setError('Invalid admin credentials.');
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setError(data.error || 'Invalid admin credentials.');
         setIsLoading(false);
         return;
       }
 
-      // Check password (In production, use bcrypt verification)
-      if (admin.password !== password) {
-        setError('Invalid admin credentials.');
-        setIsLoading(false);
-        return;
-      }
-
-      // Success
       const sessionData = {
-        id: admin.id,
-        name: admin.name,
-        email: admin.email,
-        role: admin.role,
+        id: String(data.admin.id),
+        name: String(data.admin.name),
+        email: String(data.admin.email),
+        role: String(data.admin.role || 'ADMIN'),
       };
 
       localStorage.setItem('zynboard_admin_session', JSON.stringify(sessionData));
       onLoginSuccess(sessionData);
     } catch (err) {
-      setError('An unexpected error occurred.');
+      console.error('Login error:', err);
+      setError('An error occurred while connecting to the authentication server.');
     } finally {
       setIsLoading(false);
     }

@@ -8,9 +8,9 @@ import {
   Settings, 
   HelpCircle, 
   Users, 
-  Trash2,
+  Trash2, 
   LogOut,
-  X
+  X,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -19,6 +19,7 @@ interface SidebarProps {
   deletedCount?: number;
   isOpen?: boolean;
   onClose?: () => void;
+  onLogout?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
@@ -26,7 +27,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setActiveTab, 
   deletedCount = 0,
   isOpen = false,
-  onClose = () => {}
+  onClose = () => {},
+  onLogout,
 }) => {
   const mainNav = [
     { id: 'home', label: 'Dashboard', icon: LayoutDashboard },
@@ -45,12 +47,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleTabClick = (tabId: string) => {
     setActiveTab(tabId);
-    onClose(); // Auto-close drawer on mobile selection
+    onClose();
+  };
+
+  const handleLogoutClick = () => {
+    if (onLogout) {
+      onLogout();
+    } else {
+      localStorage.removeItem('zynboard_admin_session');
+      window.location.reload();
+    }
   };
 
   return (
     <>
-      {/* Mobile Backdrop Overlay */}
       {isOpen && (
         <div 
           onClick={onClose}
@@ -66,7 +76,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         <div>
-          {/* Brand Logo & Mobile Close */}
           <div className="p-6 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-500/30">
@@ -81,17 +90,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </p>
               </div>
             </div>
-
-            {/* Mobile Close Button */}
             <button 
               onClick={onClose}
-              className="md:hidden p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              className="md:hidden p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Main Navigation */}
           <div className="px-4 space-y-6">
             <div>
               <p className="px-3 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">
@@ -160,10 +166,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Logout Footer */}
         <div className="p-4 border-t border-slate-200/80 dark:border-slate-800/80">
           <button
-            onClick={() => alert('Signing out...')}
+            onClick={handleLogoutClick}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all cursor-pointer"
           >
             <LogOut className="w-4 h-4" />

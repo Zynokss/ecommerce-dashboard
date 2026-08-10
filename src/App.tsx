@@ -20,7 +20,7 @@ import {
   updateProductInDb,
   deleteProductFromDb,
 } from './lib/productService';
-import { Search } from 'lucide-react';
+import { Search, Package } from 'lucide-react';
 
 interface AdminSession {
   id: string;
@@ -136,7 +136,11 @@ export function App() {
   const handleAddProduct = async (newProdData: Omit<Product, 'id'>) => {
     try {
       const created = await createProductInDb(newProdData);
-      const newProduct: Product = { ...newProdData, id: created.id };
+      const newProduct: Product = {
+        ...newProdData,
+        id: created ? String(created.id) : `prod_${Date.now()}`,
+        colors: created?.colors || newProdData.colors || [],
+      };
       setProducts([newProduct, ...products]);
       addToast(`"${newProduct.name}" created and synced to store!`);
     } catch {
@@ -146,30 +150,52 @@ export function App() {
 
   const handleUpdateProduct = async (updatedProduct: Product) => {
     try {
-      await updateProductInDb(updatedProduct);
-      setProducts(products.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)));
+      const updated = await updateProductInDb(updatedProduct);
+      const freshProducts = await fetchProducts();
+      setProducts(freshProducts);
       addToast(`"${updatedProduct.name}" updated successfully!`);
     } catch {
       addToast('Failed to update product in database.', 'error');
     }
   };
 
-  const handleDeleteProduct = (id: string) => {
+  const handleDeleteProduct = async (id: string) => {
     const prod = products.find((p) => p.id === id);
     if (!prod) return;
 
-    setProducts(products.filter((p) => p.id !== id));
-    setDeletedProducts([prod, ...deletedProducts]);
-    addToast(`Moved "${prod.name}" to Trash Bin.`, 'info');
+    try {
+      await deleteProductFromDb(id);
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      setDeletedProducts([prod, ...deletedProducts]);
+      addToast(`Deleted "${prod.name}" from database.`, 'info');
+    } catch {
+      addToast(`Failed to delete "${prod.name}" from database.`, 'error');
+    }
   };
 
-  const handleRestoreProduct = (id: string) => {
+  const handleRestoreProduct = async (id: string) => {
     const prod = deletedProducts.find((p) => p.id === id);
     if (!prod) return;
 
-    setDeletedProducts(deletedProducts.filter((p) => p.id !== id));
-    setProducts([prod, ...products]);
-    addToast(`Restored "${prod.name}" to inventory!`);
+    try {
+      await createProductInDb({
+        name: prod.name,
+        category: prod.category,
+        price: prod.price,
+        description: prod.description || '',
+        image: prod.image,
+        stockCount: prod.stockCount,
+        stockStatus: prod.stockStatus,
+        totalSales: prod.totalSales || 0,
+        colors: prod.colors || [],
+      });
+      setDeletedProducts(deletedProducts.filter((p) => p.id !== id));
+      const freshProducts = await fetchProducts();
+      setProducts(freshProducts);
+      addToast(`Restored "${prod.name}" to store inventory!`);
+    } catch {
+      addToast(`Failed to restore "${prod.name}".`, 'error');
+    }
   };
 
   const handlePermanentDeleteProduct = async (id: string) => {
@@ -177,15 +203,15 @@ export function App() {
     try {
       await deleteProductFromDb(id);
       setDeletedProducts(deletedProducts.filter((p) => p.id !== id));
-      addToast(`Permanently deleted "${prod?.name || 'Product'}".`, 'error');
+      addToast(`Permanently removed "${prod?.name || 'Product'}".`, 'error');
     } catch {
-      addToast('Failed to delete product from database.', 'error');
+      addToast('Failed to remove product.', 'error');
     }
   };
 
   const handleClearTrash = () => {
     setDeletedProducts([]);
-    addToast('Trash bin cleared permanently.', 'error');
+    addToast('Trash bin cleared.', 'error');
   };
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: Order['status']) => {
@@ -224,6 +250,7 @@ export function App() {
         deletedCount={deletedProducts.length}
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
+        onLogout={handleLogout}
       />
 
       <main className="flex-1 px-4 sm:px-8 py-6 sm:py-8 overflow-y-auto w-full min-w-0">
@@ -307,13 +334,41 @@ export function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-                {filteredExploreProducts.map((product) => (
-                  <div key={product.id} className="bg-white dark:bg-slate-900/60 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800/80">
-                    <h3 className="font-bold text-slate-900 dark:text-white text-sm">{product.name}</h3>
-                  </div>
-                ))}
-              </div>
+              {filteredExploreProducts.length === 0 ? (
+                <div className="py-16 text-center text-slate-400 dark:text-slate-500">
+                  <Package className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  No products found matching filters.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                  {filteredExploreProducts.map((product) => (
+                    <div key={product.id} className="bg-white dark:bg-slate-900/60 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800/80 space-y-3">
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="w-full h-48 rounded-xl object-cover border border-slate-200 dark:border-slate-700"
+                      />
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">
+                          {product.category}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          product.stockStatus === 'In Stock'
+                            ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400'
+                            : 'bg-rose-50 text-rose-500 dark:bg-rose-950/50 dark:text-rose-400'
+                        }`}>
+                          {product.stockStatus}
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-slate-900 dark:text-white text-sm line-clamp-1">{product.name}</h3>
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800">
+                        <span className="text-xs text-slate-400">{product.stockCount} in stock</span>
+                        <span className="text-sm font-black text-slate-900 dark:text-white">${product.price.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

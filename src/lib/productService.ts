@@ -1,95 +1,126 @@
-import { supabase } from './supabase';
 import type { Product } from '../types';
 
-export async function fetchProducts(): Promise<Product[]> {
-  const { data, error } = await supabase
-    .from('Product')
-    .select('*')
-    .order('createdAt', { ascending: false });
+const API_BASE = import.meta.env.VITE_STORE_API_URL || 'http://localhost:3000/api';
 
-  if (error) {
-    console.error('Error fetching products:', error);
+export async function fetchProducts(): Promise<Product[]> {
+  try {
+    const res = await fetch(`${API_BASE}/products`);
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+
+    const data = await res.json();
+    const rawProducts = data.products || [];
+
+    return rawProducts.map((item: any) => ({
+      id: String(item.id),
+      name: String(item.name || ''),
+      category: String(item.category || 'Uncategorized'),
+      price: Number(item.price || 0),
+      description: String(item.description || ''),
+      image: Array.isArray(item.images) && item.images.length > 0 
+        ? item.images[0] 
+        : item.image || 'https://images.unsplash.com/photo-1523381294911-8d3cead13475?w=500&auto=format&fit=crop',
+      stockCount: item.inStock ? 50 : 0,
+      stockStatus: item.inStock ? 'In Stock' : 'Low Stock',
+      totalSales: Number(item.totalSales || 0),
+      colors: Array.isArray(item.colors) ? item.colors : [],
+    }));
+  } catch (error) {
+    console.error('Error fetching products from API:', error);
     return [];
   }
-
-  const items = data || [];
-
-  return items.map((item: any) => ({
-    id: String(item.id),
-    name: String(item.name || ''),
-    category: String(item.category || 'Uncategorized'),
-    price: Number(item.price || 0),
-    description: String(item.description || ''),
-    image: Array.isArray(item.images) && item.images.length > 0 
-      ? item.images[0] 
-      : 'https://images.unsplash.com/photo-1523381294911-8d3cead13475?w=500&auto=format&fit=crop',
-    stockCount: item.inStock ? 50 : 0,
-    stockStatus: item.inStock ? 'In Stock' : 'Low Stock',
-    totalSales: Number(item.totalSales || 0),
-  }));
 }
 
 export async function createProductInDb(productData: Omit<Product, 'id'>) {
-  const now = new Date().toISOString();
+  const name = productData.name;
+  const category = productData.category || 'Streetwear';
+  const price = Number(productData.price) || 0;
+  const description = productData.description || productData.name || '';
+  const image = productData.image || 'https://images.unsplash.com/photo-1523381294911-8d3cead13475?w=500&auto=format&fit=crop';
+  const inStock = productData.stockStatus === 'In Stock';
+  const colors = Array.isArray(productData.colors) ? productData.colors : [];
 
-  const payload: Record<string, any> = {
-    id: `prod_${Date.now()}`,
-    name: productData.name,
-    category: productData.category || 'Uncategorized',
-    price: Number(productData.price) || 0,
-    description: productData.description || productData.name || '',
-    images: productData.image ? [productData.image] : [],
-    inStock: productData.stockStatus === 'In Stock',
-    createdAt: now,
-    updatedAt: now,
-  };
+  try {
+    const res = await fetch(`${API_BASE}/products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        category,
+        price,
+        description,
+        image,
+        images: [image],
+        inStock,
+        colors,
+      }),
+    });
 
-  const { data, error } = await supabase
-    .from('Product')
-    .insert([payload])
-    .select();
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to create product');
+    }
 
-  if (error) {
-    console.error('SUPABASE DB INSERT ERROR:', error.message, error.details, error.hint);
+    const data = await res.json();
+    return data.product;
+  } catch (error: any) {
+    console.error('API PRODUCT INSERT ERROR:', error.message || error);
     throw error;
   }
-
-  return data[0];
 }
 
 export async function updateProductInDb(product: Product) {
-  const payload: Record<string, any> = {
-    name: product.name,
-    category: product.category,
-    price: Number(product.price) || 0,
-    description: product.description || product.name || '',
-    images: product.image ? [product.image] : [],
-    inStock: product.stockStatus === 'In Stock',
-    updatedAt: new Date().toISOString(),
-  };
+  const name = product.name;
+  const category = product.category;
+  const price = Number(product.price) || 0;
+  const description = product.description || product.name || '';
+  const image = product.image;
+  const inStock = product.stockStatus === 'In Stock';
+  const colors = Array.isArray(product.colors) ? product.colors : [];
 
-  const { data, error } = await supabase
-    .from('Product')
-    .update(payload)
-    .eq('id', product.id)
-    .select();
+  try {
+    const res = await fetch(`${API_BASE}/products`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: product.id,
+        name,
+        category,
+        price,
+        description,
+        image,
+        images: [image],
+        inStock,
+        colors,
+      }),
+    });
 
-  if (error) {
-    console.error('SUPABASE DB UPDATE ERROR:', error.message, error.details, error.hint);
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to update product');
+    }
+
+    const data = await res.json();
+    return data.product;
+  } catch (error: any) {
+    console.error('API PRODUCT UPDATE ERROR:', error.message || error);
     throw error;
   }
-
-  return data[0];
 }
 
 export async function deleteProductFromDb(id: string) {
-  const { error } = await supabase
-    .from('Product')
-    .delete()
-    .eq('id', id);
+  try {
+    const res = await fetch(`${API_BASE}/products?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
 
-  if (error) {
-    console.error('SUPABASE DB DELETE ERROR:', error.message, error.details, error.hint);
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to delete product');
+    }
+
+    return true;
+  } catch (error: any) {
+    console.error('API PRODUCT DELETE ERROR:', error.message || error);
     throw error;
   }
 }
