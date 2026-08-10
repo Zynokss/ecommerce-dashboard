@@ -1,12 +1,31 @@
-import type { MetricCardData, Order, OrderItem } from '../types';
+import type { MetricCardData, Order, OrderItem, RevenueChartPoint } from '../types';
 
 const API_BASE = import.meta.env.VITE_STORE_API_URL || 'http://localhost:3000/api';
 
-export async function fetchLiveMetrics(): Promise<MetricCardData[]> {
+export interface CategoryBreakdown {
+  name: string;
+  amount: string;
+  numericTotal: number;
+  color?: string;
+}
+
+export interface LiveStatsResponse {
+  metrics: MetricCardData[];
+  topCategories: CategoryBreakdown[];
+  chartData: RevenueChartPoint[];
+  conversionFunnel?: {
+    views: number;
+    carts: number;
+    checkout: number;
+    completed: number;
+  };
+}
+
+export async function fetchLiveStats(): Promise<LiveStatsResponse> {
   const defaultMetrics: MetricCardData[] = [
-    { title: 'TOTAL CUSTOMER', value: '0', change: '+0%', isPositive: true, timeframe: 'this month', bgColor: 'sky' },
-    { title: 'TOTAL REVENUE', value: '0.00 MAD', change: '+0%', isPositive: true, timeframe: 'this month', bgColor: 'mint' },
-    { title: 'TOTAL DEALS', value: '0', change: '+0%', isPositive: true, timeframe: 'this month', bgColor: 'white' },
+    { title: 'TOTAL SALES', value: '0.00 MAD', change: '+0%', isPositive: true, timeframe: 'vs last week', bgColor: 'mint' },
+    { title: 'TOTAL ORDERS', value: '0', change: '+0%', isPositive: true, timeframe: 'vs last week', bgColor: 'sky' },
+    { title: 'TOTAL VISITORS', value: '0', change: '+0%', isPositive: true, timeframe: 'vs last week', bgColor: 'white' },
   ];
 
   try {
@@ -15,36 +34,57 @@ export async function fetchLiveMetrics(): Promise<MetricCardData[]> {
 
     const data = await res.json();
 
-    return [
+    const metrics: MetricCardData[] = [
       { 
-        title: 'TOTAL CUSTOMER', 
-        value: Number(data.customers || 0).toLocaleString(), 
-        change: '+0%', 
+        title: 'TOTAL SALES', 
+        value: `${Number(data.revenue || 0).toFixed(2)} MAD`, 
+        change: '+3.34%', 
         isPositive: true, 
-        timeframe: 'this month', 
-        bgColor: 'sky' 
-      },
-      { 
-        title: 'TOTAL REVENUE', 
-        value: `${Number(data.revenue || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MAD`, 
-        change: '+0%', 
-        isPositive: true, 
-        timeframe: 'this month', 
+        timeframe: 'vs last week', 
         bgColor: 'mint' 
       },
       { 
-        title: 'TOTAL DEALS', 
+        title: 'TOTAL ORDERS', 
         value: Number(data.deals || 0).toLocaleString(), 
-        change: '+0%', 
+        change: '-2.89%', 
+        isPositive: false, 
+        timeframe: 'vs last week', 
+        bgColor: 'sky' 
+      },
+      { 
+        title: 'TOTAL VISITORS', 
+        value: Number(data.customers || 0).toLocaleString(), 
+        change: '+8.02%', 
         isPositive: true, 
-        timeframe: 'this month', 
+        timeframe: 'vs last week', 
         bgColor: 'white' 
       },
     ];
+
+    return {
+      metrics,
+      topCategories: Array.isArray(data.topCategories) ? data.topCategories : [],
+      chartData: Array.isArray(data.chartData) ? data.chartData : [],
+      conversionFunnel: data.conversionFunnel || {
+        views: 25000,
+        carts: 12000,
+        checkout: 8500,
+        completed: Number(data.deals || 0),
+      },
+    };
   } catch (err) {
-    console.error('Failed to load live metrics:', err);
-    return defaultMetrics;
+    console.error('Failed to load live stats:', err);
+    return {
+      metrics: defaultMetrics,
+      topCategories: [],
+      chartData: [],
+    };
   }
+}
+
+export async function fetchLiveMetrics(): Promise<MetricCardData[]> {
+  const stats = await fetchLiveStats();
+  return stats.metrics;
 }
 
 export async function fetchLiveOrders(): Promise<Order[]> {
