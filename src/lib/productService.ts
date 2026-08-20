@@ -1,11 +1,13 @@
 // src/lib/productService.ts
 import type { Product } from '../types';
+import { AuthError } from './dashboardService';
 
 const API_BASE = import.meta.env.VITE_STORE_API_URL || 'http://localhost:3000/api';
 
 export async function fetchProducts(): Promise<Product[]> {
   try {
     const res = await fetch(`${API_BASE}/products`, { credentials: 'include' });
+    if (res.status === 401 || res.status === 403) throw new AuthError('Session expired or unauthorized');
     if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
     const data = await res.json();
@@ -30,6 +32,7 @@ export async function fetchProducts(): Promise<Product[]> {
       brand: String(item.brand || 'ZYN'),
     }));
   } catch (error) {
+    if (error instanceof AuthError) throw error;
     console.error('Error fetching products from API:', error);
     return [];
   }

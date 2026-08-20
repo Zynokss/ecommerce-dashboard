@@ -19,6 +19,7 @@ import {
   fetchLiveStats,
   fetchLiveOrders,
   updateOrderStatusInDb,
+  AuthError,
   type CategoryBreakdown,
 } from './lib/dashboardService';
 import {
@@ -27,6 +28,7 @@ import {
   updateProductInDb,
   deleteProductFromDb
 } from './lib/productService';
+import { canAccessTab } from './lib/permissions';
 import {
   Package,
   AlertTriangle,
@@ -116,16 +118,33 @@ export function App() {
     setCurrentAdmin(null);
   };
 
+  // A locally cached session is only a UI hint — every request still relies on the
+  // server-validated cookie, so a 401/403 from any of these means the real session
+  // is invalid (expired, revoked, or forged) and the UI must drop back to the login screen.
+  useEffect(() => {
+    if (currentAdmin && !canAccessTab(currentAdmin.role, activeTab)) {
+      setActiveTab('home');
+    }
+  }, [currentAdmin, activeTab]);
+
   // Poll stats and orders every 10 seconds for real-time order updates
   useEffect(() => {
     if (!currentAdmin) return;
     async function loadStats() {
-      const liveStats = await fetchLiveStats();
-      setMetrics(liveStats.metrics);
-      setTopCategories(liveStats.topCategories);
-      setRevenueChartData(liveStats.chartData);
-      setConversionRate(liveStats.conversionRate);
-      setIsLoadingMetrics(false);
+      try {
+        const liveStats = await fetchLiveStats();
+        setMetrics(liveStats.metrics);
+        setTopCategories(liveStats.topCategories);
+        setRevenueChartData(liveStats.chartData);
+        setConversionRate(liveStats.conversionRate);
+      } catch (err) {
+        if (err instanceof AuthError) {
+          handleLogout();
+          return;
+        }
+      } finally {
+        setIsLoadingMetrics(false);
+      }
     }
 
     loadStats();
@@ -136,9 +155,17 @@ export function App() {
   useEffect(() => {
     if (!currentAdmin) return;
     async function loadProducts() {
-      const dbProducts = await fetchProducts();
-      setProducts(dbProducts);
-      setIsLoadingProducts(false);
+      try {
+        const dbProducts = await fetchProducts();
+        setProducts(dbProducts);
+      } catch (err) {
+        if (err instanceof AuthError) {
+          handleLogout();
+          return;
+        }
+      } finally {
+        setIsLoadingProducts(false);
+      }
     }
     loadProducts();
   }, [currentAdmin]);
@@ -150,6 +177,10 @@ export function App() {
         const liveOrders = await fetchLiveOrders();
         setOrders(liveOrders);
       } catch (err) {
+        if (err instanceof AuthError) {
+          handleLogout();
+          return;
+        }
         console.error('Failed to load orders:', err);
       } finally {
         setIsLoadingOrders(false);
@@ -331,7 +362,7 @@ export function App() {
             id: admin.id,
             name: admin.name || admin.email.split('@')[0],
             email: admin.email,
-            role: admin.role || 'Admin',
+            role: admin.role || 'Fulfillment',
           };
           localStorage.setItem('zynboard_admin_session', JSON.stringify(sessionObj));
           setCurrentAdmin(sessionObj);
@@ -347,6 +378,7 @@ export function App() {
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        role={currentAdmin.role}
         deletedCount={deletedProducts.length}
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
@@ -357,6 +389,7 @@ export function App() {
         <div className="max-w-[1600px] mx-auto space-y-6">
           <Header
             userName={currentAdmin.name}
+            role={currentAdmin.role}
             darkMode={darkMode}
             setDarkMode={setDarkMode}
             setActiveTab={setActiveTab}
@@ -721,14 +754,14 @@ export function App() {
               </motion.div>
             )}
 
-            {/* TAB 6: SETTINGS */}
-            {activeTab === 'settings' && <SettingsView />}
+            {/* TAB 6: SETTINGS (Admin only) */}
+            {activeTab === 'settings' && canAccessTab(currentAdmin.role, 'settings') && <SettingsView />}
 
             {/* TAB 7: SUPPORT */}
             {activeTab === 'help' && <SupportView />}
 
-            {/* TAB 8: TEAM ACCESS */}
-            {activeTab === 'users' && <TeamAccessView />}
+            {/* TAB 8: TEAM ACCESS (Admin only) */}
+            {activeTab === 'users' && canAccessTab(currentAdmin.role, 'users') && <TeamAccessView />}
 
             {/* TAB 9: TRASH BIN */}
             {activeTab === 'trash' && (

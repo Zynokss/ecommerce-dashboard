@@ -2,6 +2,8 @@ import type { MetricCardData, Order, OrderItem, RevenueChartPoint } from '../typ
 
 const API_BASE = import.meta.env.VITE_STORE_API_URL || 'http://localhost:3000/api';
 
+export class AuthError extends Error {}
+
 export interface CategoryBreakdown {
   name: string;
   amount: string;
@@ -26,6 +28,7 @@ export async function fetchLiveStats(): Promise<LiveStatsResponse> {
 
   try {
     const res = await fetch(`${API_BASE}/admin/stats`, { credentials: 'include' });
+    if (res.status === 401 || res.status === 403) throw new AuthError('Session expired or unauthorized');
     if (!res.ok) throw new Error('Failed to fetch stats');
 
     const data = await res.json();
@@ -66,6 +69,7 @@ export async function fetchLiveStats(): Promise<LiveStatsResponse> {
       conversionRate: String(stats.conversionRate || '0%'),
     };
   } catch (err) {
+    if (err instanceof AuthError) throw err;
     console.error('Failed to load live stats:', err);
     return {
       metrics: defaultMetrics,
@@ -85,6 +89,7 @@ export async function fetchLiveMetrics(): Promise<MetricCardData[]> {
 export async function fetchLiveOrders(): Promise<Order[]> {
   try {
     const res = await fetch(`${API_BASE}/orders`, { credentials: 'include' });
+    if (res.status === 401 || res.status === 403) throw new AuthError('Session expired or unauthorized');
     if (!res.ok) throw new Error('Failed to fetch orders');
 
     const data = await res.json();
@@ -148,6 +153,7 @@ export async function fetchLiveOrders(): Promise<Order[]> {
       };
     });
   } catch (error) {
+    if (error instanceof AuthError) throw error;
     console.error('Error fetching live orders:', error);
     return [];
   }
@@ -158,7 +164,7 @@ export async function updateOrderStatusInDb(orderId: string, uiStatus: Order['st
   if (uiStatus === 'Delivered') dbStatus = 'DELIVERED';
   if (uiStatus === 'Shipped') dbStatus = 'SHIPPED';
   if (uiStatus === 'Processing') dbStatus = 'PROCESSING';
-  if (uiStatus === 'Cancelled') dbStatus = 'CANCELLED';
+  if (uiStatus === 'Cancelled') dbStatus = 'CANCELED';
   if (uiStatus === 'Pending') dbStatus = 'PENDING_PAYMENT';
 
   const res = await fetch(`${API_BASE}/orders`, {

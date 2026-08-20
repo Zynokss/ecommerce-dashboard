@@ -15,19 +15,22 @@ import {
   Zap,
   ChevronRight
 } from 'lucide-react';
+import { canAccessTab } from '../lib/permissions';
 
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  role?: string;
   deletedCount?: number;
   isOpen?: boolean;
   onClose?: () => void;
   onLogout?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ 
-  activeTab, 
-  setActiveTab, 
+export const Sidebar: React.FC<SidebarProps> = ({
+  activeTab,
+  setActiveTab,
+  role,
   deletedCount = 0,
   isOpen = false,
   onClose = () => {},
@@ -39,14 +42,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'explore', label: 'Catalog Grid', icon: Grid },
     { id: 'shop', label: 'Products Table', icon: Package },
     { id: 'chat', label: 'Orders Feed', icon: ShoppingBag },
-  ];
+  ].filter((item) => canAccessTab(role, item.id));
 
   const managementNav = [
     { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'help', label: 'Support', icon: HelpCircle },
     { id: 'users', label: 'Team Access', icon: Users },
     { id: 'trash', label: 'Trash Bin', icon: Trash2, badge: deletedCount },
-  ];
+  ].filter((item) => canAccessTab(role, item.id));
 
   const handleTabClick = (tabId: string) => {
     setActiveTab(tabId);

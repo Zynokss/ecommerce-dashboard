@@ -25,10 +25,12 @@ import {
   Command,
   Sparkles
 } from 'lucide-react';
+import { canAccessTab } from '../lib/permissions';
 
 interface HeaderProps {
   userName?: string;
   avatarUrl?: string;
+  role?: string;
   darkMode: boolean;
   setDarkMode: (val: boolean) => void;
   setActiveTab: (tab: string) => void;
@@ -41,6 +43,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   userName = 'Zynoks',
   avatarUrl = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=120',
+  role,
   darkMode,
   setDarkMode,
   setActiveTab,
@@ -94,7 +97,7 @@ export const Header: React.FC<HeaderProps> = ({
     { label: 'Products Inventory', tab: 'shop', icon: Package },
     { label: 'Orders & Fulfillment', tab: 'chat', icon: ShoppingBag },
     { label: 'Trash Recovery Bin', tab: 'trash', icon: Trash2 },
-  ];
+  ].filter((item) => canAccessTab(role, item.tab));
 
   const searchLower = globalSearch.toLowerCase().trim();
   const matchingPages = searchLower
@@ -444,33 +447,39 @@ export const Header: React.FC<HeaderProps> = ({
                   <p className="text-[10px] font-mono text-slate-400">Owner & Administrator</p>
                 </div>
                 <div className="py-1">
-                  <button
-                    onClick={() => {
-                      setActiveTab('settings');
-                      setIsProfileOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-700/40 dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
-                  >
-                    <User className="w-4 h-4 text-slate-400" /> Account Profile
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveTab('settings');
-                      setIsProfileOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-700/40 dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
-                  >
-                    <Settings className="w-4 h-4 text-slate-400" /> Store Settings
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveTab('users');
-                      setIsProfileOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-700/40 dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
-                  >
-                    <ShieldCheck className="w-4 h-4 text-slate-400" /> Staff Access
-                  </button>
+                  {canAccessTab(role, 'settings') && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setActiveTab('settings');
+                          setIsProfileOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-700/40 dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
+                      >
+                        <User className="w-4 h-4 text-slate-400" /> Account Profile
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveTab('settings');
+                          setIsProfileOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-700/40 dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
+                      >
+                        <Settings className="w-4 h-4 text-slate-400" /> Store Settings
+                      </button>
+                    </>
+                  )}
+                  {canAccessTab(role, 'users') && (
+                    <button
+                      onClick={() => {
+                        setActiveTab('users');
+                        setIsProfileOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-700/40 dark:hover:bg-white/[0.05] transition-colors cursor-pointer"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-slate-400" /> Staff Access
+                    </button>
+                  )}
                 </div>
                 <div className="border-t border-slate-700/50 dark:border-white/5 pt-1 mt-1">
                   <button
