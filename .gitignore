@@ -35,3 +35,6 @@ dist-ssr
 # Deployment Caches
 .vercel
 .netlify
+
+# Graphify
+graphify-out/
