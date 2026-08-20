@@ -1,23 +1,26 @@
 import React, { useEffect } from 'react';
-import { CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 export interface ToastMessage {
   id: string;
-  type: 'success' | 'error' | 'info';
+  type?: 'success' | 'error' | 'info';
   message: string;
 }
 
-interface ToastProps {
+export interface ToastContainerProps {
   toasts: ToastMessage[];
   onDismiss: (id: string) => void;
 }
 
-export const ToastContainer: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
+export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismiss }) => {
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-md w-full pointer-events-none px-4 sm:px-0">
-      {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} onDismiss={onDismiss} />
-      ))}
+    <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-md w-full pointer-events-none select-none">
+      <AnimatePresence>
+        {toasts.map((toast) => (
+          <ToastItem key={toast.id} toast={toast} onDismiss={onDismiss} />
+        ))}
+      </AnimatePresence>
     </div>
   );
 };
@@ -29,36 +32,44 @@ const ToastItem: React.FC<{ toast: ToastMessage; onDismiss: (id: string) => void
   useEffect(() => {
     const timer = setTimeout(() => {
       onDismiss(toast.id);
-    }, 3500);
-
+    }, 4000);
     return () => clearTimeout(timer);
   }, [toast.id, onDismiss]);
 
+  const getIcon = () => {
+    switch (toast.type) {
+      case 'success':
+        return <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />;
+      case 'error':
+        return <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />;
+      case 'info':
+      default:
+        return <Info className="w-4 h-4 text-[#7c5cfc] shrink-0" />;
+    }
+  };
+
   return (
-    <div
-      className={`pointer-events-auto flex items-center justify-between gap-3 p-4 rounded-2xl shadow-xl border backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-200 ${
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 20, scale: 0.95 }}
+      transition={{ duration: 0.2 }}
+      className={`pointer-events-auto flex items-center gap-3 px-4 py-3 bg-[#1c202c]/95 dark:bg-[#0e1015]/95 backdrop-blur-2xl border text-slate-100 rounded-2xl shadow-2xl ${
         toast.type === 'success'
-          ? 'bg-emerald-950/90 border-emerald-800/80 text-emerald-200 dark:bg-emerald-950/90 dark:border-emerald-800/80 dark:text-emerald-200'
+          ? 'border-emerald-500/30'
           : toast.type === 'error'
-          ? 'bg-rose-950/90 border-rose-800/80 text-rose-200 dark:bg-rose-950/90 dark:border-rose-800/80 dark:text-rose-200'
-          : 'bg-slate-900/90 border-slate-800 text-slate-200'
+          ? 'border-rose-500/30'
+          : 'border-[#7c5cfc]/40'
       }`}
     >
-      <div className="flex items-center gap-2.5 text-xs font-semibold">
-        {toast.type === 'success' ? (
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-        ) : (
-          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-        )}
-        <span>{toast.message}</span>
-      </div>
-
+      {getIcon()}
+      <p className="text-xs font-semibold text-slate-200 flex-1">{toast.message}</p>
       <button
         onClick={() => onDismiss(toast.id)}
-        className="p-1 rounded-lg hover:bg-white/10 transition-colors cursor-pointer text-slate-400 hover:text-white"
+        className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer rounded-lg hover:bg-white/5"
       >
         <X className="w-3.5 h-3.5" />
       </button>
-    </div>
+    </motion.div>
   );
 };

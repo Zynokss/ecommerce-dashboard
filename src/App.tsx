@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
 import { LoginView } from './components/LoginView';
-import { MetricCard } from './components/MetricCard';
 import { RevenueChart } from './components/RevenueChart';
 import { TopProductsTable } from './components/TopProductsTable';
+import { AnalyticsView } from './components/AnalyticsView';
+import { CatalogExplorer } from './components/CatalogExplorer';
 import { ProductsView } from './components/ProductsView';
 import { OrdersView } from './components/OrdersView';
 import { SettingsView } from './components/SettingsView';
@@ -14,24 +15,30 @@ import { TeamAccessView } from './components/TeamAccessView';
 import { TrashView } from './components/TrashView';
 import { ToastContainer, type ToastMessage } from './components/Toast';
 import type { Product, Order, MetricCardData, RevenueChartPoint } from './types';
-import { fetchLiveStats, fetchLiveOrders, updateOrderStatusInDb, type CategoryBreakdown } from './lib/dashboardService';
-import { 
-  fetchProducts, 
-  createProductInDb, 
-  updateProductInDb, 
-  deleteProductFromDb 
+import {
+  fetchLiveStats,
+  fetchLiveOrders,
+  updateOrderStatusInDb,
+  type CategoryBreakdown,
+} from './lib/dashboardService';
+import {
+  fetchProducts,
+  createProductInDb,
+  updateProductInDb,
+  deleteProductFromDb
 } from './lib/productService';
-import { 
-  Search, 
-  Package, 
-  Target, 
-  Globe, 
-  PieChart as PieIcon,
-  ChevronRight,
-  MoreHorizontal,
-  Activity,
+import {
+  Package,
+  AlertTriangle,
+  ArrowUpRight,
   Zap,
-  TrendingUp
+  Activity,
+  Plus,
+  Tag,
+  ArrowRight,
+  CheckCircle2,
+  Clock,
+  Layers
 } from 'lucide-react';
 
 interface AdminSession {
@@ -41,12 +48,17 @@ interface AdminSession {
   role: string;
 }
 
-const parseCurrencyValue = (valStr: string): number => {
-  if (!valStr) return 0;
-  const cleaned = valStr.replace(/\s+/g, '').replace(',', '.');
-  const match = cleaned.match(/-?\d+(\.\d+)?/);
-  return match ? parseFloat(match[0]) : 0;
+const ORDER_STATUSES = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'] as const;
+
+const STATUS_COLORS: Record<Order['status'], string> = {
+  Pending: 'bg-amber-500',
+  Processing: 'bg-indigo-500',
+  Shipped: 'bg-sky-500',
+  Delivered: 'bg-emerald-500',
+  Cancelled: 'bg-rose-500',
 };
+
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=100&auto=format&fit=crop';
 
 export function App() {
   const [currentAdmin, setCurrentAdmin] = useState<AdminSession | null>(() => {
@@ -55,23 +67,30 @@ export function App() {
   });
 
   const [activeTab, setActiveTab] = useState<string>('home');
-  const [darkMode, setDarkMode] = useState<boolean>(true);
+
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    const savedTheme = localStorage.getItem('zynboard_theme');
+    if (savedTheme) {
+      return savedTheme === 'dark';
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const [metrics, setMetrics] = useState<MetricCardData[]>([
-    { title: 'TOTAL SALES', value: '0.00 MAD', change: '+0%', isPositive: true, timeframe: 'vs last week', bgColor: 'mint' },
-    { title: 'TOTAL ORDERS', value: '0', change: '+0%', isPositive: true, timeframe: 'vs last week', bgColor: 'sky' },
-    { title: 'TOTAL VISITORS', value: '0', change: '+0%', isPositive: true, timeframe: 'vs last week', bgColor: 'white' },
+    { title: 'Total Sales', value: '0.00 MAD', change: '+0%', isPositive: true, timeframe: 'all time', bgColor: 'mint' },
+    { title: 'Total Orders', value: '0', change: '+0%', isPositive: true, timeframe: 'all time', bgColor: 'sky' },
+    { title: 'Registered Users', value: '0', change: '+0%', isPositive: true, timeframe: 'all time', bgColor: 'white' },
   ]);
 
   const [isLoadingMetrics, setIsLoadingMetrics] = useState<boolean>(true);
+  const [isLoadingOrders, setIsLoadingOrders] = useState<boolean>(true);
+  const [isLoadingProducts, setIsLoadingProducts] = useState<boolean>(true);
   const [revenueChartData, setRevenueChartData] = useState<RevenueChartPoint[]>([]);
   const [topCategories, setTopCategories] = useState<CategoryBreakdown[]>([]);
-  const [totalSalesNumeric, setTotalSalesNumeric] = useState<number>(0);
-
-  const [exploreSearch, setExploreSearch] = useState<string>('');
-  const [exploreCategory, setExploreCategory] = useState<string>('All');
+  const [conversionRate, setConversionRate] = useState<string>('0%');
 
   const [products, setProducts] = useState<Product[]>([]);
   const [deletedProducts, setDeletedProducts] = useState<Product[]>(() => {
@@ -81,30 +100,37 @@ export function App() {
 
   const [orders, setOrders] = useState<Order[]>([]);
 
+  useEffect(() => {
+    const root = document.documentElement;
+    if (darkMode) {
+      root.classList.add('dark');
+      localStorage.setItem('zynboard_theme', 'dark');
+    } else {
+      root.classList.remove('dark');
+      localStorage.setItem('zynboard_theme', 'light');
+    }
+  }, [darkMode]);
+
   const handleLogout = () => {
     localStorage.removeItem('zynboard_admin_session');
     setCurrentAdmin(null);
   };
 
+  // Poll stats and orders every 10 seconds for real-time order updates
   useEffect(() => {
     if (!currentAdmin) return;
     async function loadStats() {
-      setIsLoadingMetrics(true);
       const liveStats = await fetchLiveStats();
-      if (liveStats) {
-        setMetrics(liveStats.metrics);
-        setTopCategories(liveStats.topCategories);
-        if (liveStats.chartData && liveStats.chartData.length > 0) {
-          setRevenueChartData(liveStats.chartData);
-        }
-        const salesCard = liveStats.metrics.find((m) => m.title === 'TOTAL SALES');
-        if (salesCard) {
-          setTotalSalesNumeric(parseCurrencyValue(salesCard.value));
-        }
-      }
+      setMetrics(liveStats.metrics);
+      setTopCategories(liveStats.topCategories);
+      setRevenueChartData(liveStats.chartData);
+      setConversionRate(liveStats.conversionRate);
       setIsLoadingMetrics(false);
     }
+
     loadStats();
+    const statsInterval = setInterval(loadStats, 10000);
+    return () => clearInterval(statsInterval);
   }, [currentAdmin]);
 
   useEffect(() => {
@@ -112,6 +138,7 @@ export function App() {
     async function loadProducts() {
       const dbProducts = await fetchProducts();
       setProducts(dbProducts);
+      setIsLoadingProducts(false);
     }
     loadProducts();
   }, [currentAdmin]);
@@ -124,24 +151,19 @@ export function App() {
         setOrders(liveOrders);
       } catch (err) {
         console.error('Failed to load orders:', err);
+      } finally {
+        setIsLoadingOrders(false);
       }
     }
+
     loadOrders();
+    const ordersInterval = setInterval(loadOrders, 10000);
+    return () => clearInterval(ordersInterval);
   }, [currentAdmin]);
 
   useEffect(() => {
     localStorage.setItem('zynboard_trash_products', JSON.stringify(deletedProducts));
   }, [deletedProducts]);
-
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-      document.body.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      document.body.classList.remove('dark');
-    }
-  }, [darkMode]);
 
   const addToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     const newToast: ToastMessage = {
@@ -202,13 +224,16 @@ export function App() {
       await createProductInDb({
         name: prod.name,
         category: prod.category,
+        brand: prod.brand || 'ZYN',
         price: prod.price,
         description: prod.description || '',
         image: prod.image,
         stockCount: prod.stockCount,
         stockStatus: prod.stockStatus,
         totalSales: prod.totalSales || 0,
+        sizes: prod.sizes || ['S', 'M', 'L', 'XL'],
         colors: prod.colors || [],
+        featured: prod.featured || false,
       });
       setDeletedProducts(deletedProducts.filter((p) => p.id !== id));
       const freshProducts = await fetchProducts();
@@ -247,37 +272,89 @@ export function App() {
     }
   };
 
-  const exploreCategories = ['All', ...Array.from(new Set(products.map((p) => p.category)))];
-  const filteredExploreProducts = products.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(exploreSearch.toLowerCase()) ||
-      p.category.toLowerCase().includes(exploreSearch.toLowerCase());
-    const matchesCat = exploreCategory === 'All' || p.category === exploreCategory;
-    return matchesSearch && matchesCat;
-  });
+  const handleCreateManualOrder = (newOrder: Order) => {
+    setOrders([newOrder, ...orders]);
+    addToast(`Manual Order #${newOrder.id.slice(-6).toUpperCase()} created!`);
+  };
 
-  const monthlyTargetGoal = 10000;
-  const targetPct = Math.min(Math.round((totalSalesNumeric / monthlyTargetGoal) * 100), 100);
+  const lowStockItems = products.filter((p) => p.stockStatus === 'Low Stock' || p.stockCount < 5);
+
+  const featuredProducts = products.filter((p) => p.featured);
+  const featuredDisplay = featuredProducts.length > 0 ? featuredProducts.slice(0, 3) : products.slice(0, 3);
+
+  const avgOrderValue = orders.length > 0
+    ? orders.reduce((sum, o) => sum + o.amount, 0) / orders.length
+    : 0;
+
+  const homeKpis = [
+    { title: metrics[0]?.title || 'Total Sales', val: metrics[0]?.value || '0.00 MAD' },
+    { title: metrics[1]?.title || 'Total Orders', val: metrics[1]?.value || String(orders.length) },
+    { title: metrics[2]?.title || 'Registered Users', val: metrics[2]?.value || '0' },
+    { title: 'Avg Order Value', val: `${avgOrderValue.toFixed(2)} MAD` },
+    { title: 'Conversion Rate', val: conversionRate },
+  ];
+
+  const orderStatusCounts = useMemo(() => {
+    const counts: Record<Order['status'], number> = {
+      Pending: 0, Processing: 0, Shipped: 0, Delivered: 0, Cancelled: 0,
+    };
+    orders.forEach((o) => { counts[o.status] = (counts[o.status] || 0) + 1; });
+    return counts;
+  }, [orders]);
+
+  const rankedTopProducts = useMemo(() => {
+    const agg = new Map<string, { name: string; image: string; category: string; unitsSold: number; revenue: number }>();
+    orders.forEach((order) => {
+      order.items.forEach((item) => {
+        const key = item.productId || item.id;
+        const existing = agg.get(key);
+        const product = products.find((p) => p.id === item.productId);
+        agg.set(key, {
+          name: product?.name || item.product?.name || 'Product',
+          image: product?.image || item.product?.image || FALLBACK_IMAGE,
+          category: product?.category || item.product?.category || 'Streetwear',
+          unitsSold: (existing?.unitsSold || 0) + item.quantity,
+          revenue: (existing?.revenue || 0) + item.price * item.quantity,
+        });
+      });
+    });
+    return Array.from(agg.entries())
+      .map(([id, data]) => ({ id, ...data }))
+      .sort((a, b) => b.unitsSold - a.unitsSold);
+  }, [orders, products]);
 
   if (!currentAdmin) {
-    return <LoginView onLoginSuccess={(admin) => setCurrentAdmin(admin)} />;
+    return (
+      <LoginView
+        onLoginSuccess={(admin) => {
+          const sessionObj: AdminSession = {
+            id: admin.id,
+            name: admin.name || admin.email.split('@')[0],
+            email: admin.email,
+            role: admin.role || 'Admin',
+          };
+          localStorage.setItem('zynboard_admin_session', JSON.stringify(sessionObj));
+          setCurrentAdmin(sessionObj);
+        }}
+      />
+    );
   }
 
   return (
-    <div className="min-h-screen flex font-sans antialiased selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen flex bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-zinc-100 font-sans antialiased selection:bg-indigo-500/20 selection:text-indigo-600 dark:selection:text-indigo-300">
       <ToastContainer toasts={toasts} onDismiss={removeToast} />
-      
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
+
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
         deletedCount={deletedProducts.length}
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
         onLogout={handleLogout}
       />
 
-      <main className="flex-1 px-4 sm:px-8 py-6 sm:py-8 overflow-y-auto w-full min-w-0">
-        <div className="max-w-[1600px] mx-auto space-y-8">
+      <main className="flex-1 px-4 sm:px-8 py-6 overflow-y-auto w-full min-w-0 bg-slate-50 dark:bg-[#09090b]">
+        <div className="max-w-[1600px] mx-auto space-y-6">
           <Header
             userName={currentAdmin.name}
             darkMode={darkMode}
@@ -290,351 +367,337 @@ export function App() {
           />
 
           <AnimatePresence mode="wait">
-            {/* TAB 1: Bento Modular Dashboard Layout */}
+            {/* TAB 1: HOME DASHBOARD */}
             {activeTab === 'home' && (
               <motion.div
                 key="home-tab"
-                initial={{ opacity: 0, y: 15 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                transition={{ duration: 0.3 }}
-                className="grid grid-cols-1 lg:grid-cols-12 gap-6"
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.15 }}
+                className="space-y-6"
               >
-                {/* Primary Column */}
-                <div className="lg:col-span-9 space-y-6">
-                  {/* Metric Cards Bento Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                    {metrics.map((metric, idx) => (
-                      <MetricCard
-                        key={idx}
-                        data={{
-                          ...metric,
-                          value: isLoadingMetrics ? '...' : metric.value,
-                        }}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Revenue Trajectory & Monthly Target Bento Container */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    <div className="lg:col-span-8">
-                      <RevenueChart data={revenueChartData} />
-                    </div>
-
-                    {/* Monthly Target Radial Card */}
-                    <div className="lg:col-span-4 glass-panel rounded-3xl p-6 flex flex-col justify-between relative overflow-hidden shadow-sm">
-                      <div className="flex items-center justify-between z-10">
-                        <h3 className="font-extrabold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-2">
-                          <Target className="w-4 h-4 text-indigo-500" />
-                          Target Progress
-                        </h3>
-                        <button className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="my-6 flex flex-col items-center justify-center relative z-10">
-                        <div className="relative w-44 h-22 overflow-hidden flex items-end justify-center">
-                          <div 
-                            className="w-44 h-44 rounded-full border-[14px] border-slate-200 dark:border-slate-800 border-t-indigo-500 border-r-indigo-500 transform -rotate-45 transition-all duration-1000 ease-out"
-                            style={{ opacity: targetPct > 0 ? 1 : 0.2 }}
-                          />
-                        </div>
-                        <div className="text-center mt-3">
-                          <span className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">{targetPct}%</span>
-                          <p className="text-[11px] font-bold text-emerald-500 flex items-center justify-center gap-1 mt-1">
-                            <TrendingUp className="w-3.5 h-3.5" /> Synchronized DB
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="glass-panel p-4 rounded-2xl text-center z-10">
-                        <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                          Goal: <span className="text-slate-900 dark:text-white font-black">{monthlyTargetGoal.toLocaleString()} MAD</span>
-                        </p>
-                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                          Current: <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">{totalSalesNumeric.toFixed(2)} MAD</span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Secondary Metrics Bento Row */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Active Visitors */}
-                    <div className="glass-panel rounded-3xl p-5 shadow-sm space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Active Sessions</span>
-                        <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                          <Activity className="w-3 h-3 animate-pulse" /> Live Tracking
-                        </span>
-                      </div>
-                      <div>
-                        <h4 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-                          {metrics.find((m) => m.title === 'TOTAL VISITORS')?.value || '0'}
-                        </h4>
-                        <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">Active storefront connections</p>
-                      </div>
-                      <div className="space-y-2.5 pt-2 border-t border-slate-200/80 dark:border-white/5">
-                        {[
-                          { country: 'Morocco', pct: '85%' },
-                          { country: 'France', pct: '10%' },
-                          { country: 'Other', pct: '5%' },
-                        ].map((c) => (
-                          <div key={c.country} className="space-y-1">
-                            <div className="flex justify-between text-xs font-bold">
-                              <span className="text-slate-500 dark:text-slate-400">{c.country}</span>
-                              <span className="text-slate-900 dark:text-white">{c.pct}</span>
-                            </div>
-                            <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-                              <div className="h-full bg-indigo-500 rounded-full" style={{ width: c.pct }} />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Fulfillment Pipeline */}
-                    <div className="glass-panel rounded-3xl p-5 shadow-sm space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Order Pipeline</span>
-                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-500/30 px-2.5 py-0.5 rounded-full">
-                          Real-time
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2.5 pt-1 text-center">
-                        <div className="p-3 glass-panel rounded-2xl">
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">Pending</p>
-                          <p className="text-lg font-black text-amber-500 mt-1">
-                            {orders.filter((o) => o.status === 'Pending').length}
-                          </p>
-                        </div>
-                        <div className="p-3 glass-panel rounded-2xl">
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">Processing</p>
-                          <p className="text-lg font-black text-indigo-500 mt-1">
-                            {orders.filter((o) => o.status === 'Processing').length}
-                          </p>
-                        </div>
-                        <div className="p-3 glass-panel rounded-2xl">
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">Shipped</p>
-                          <p className="text-lg font-black text-sky-500 mt-1">
-                            {orders.filter((o) => o.status === 'Shipped').length}
-                          </p>
-                        </div>
-                        <div className="p-3 glass-panel rounded-2xl">
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider font-extrabold">Delivered</p>
-                          <p className="text-lg font-black text-emerald-500 mt-1">
-                            {orders.filter((o) => o.status === 'Delivered').length}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Traffic Source */}
-                    <div className="glass-panel rounded-3xl p-5 shadow-sm space-y-4">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Traffic Source</span>
-                        <Globe className="w-4 h-4 text-indigo-500" />
-                      </div>
-                      <div className="space-y-3 pt-1">
-                        {[
-                          { source: 'Direct Store Visits', val: '70%' },
-                          { source: 'Organic Search', val: '20%' },
-                          { source: 'Social Referrals', val: '10%' },
-                        ].map((t) => (
-                          <div key={t.source} className="flex items-center justify-between text-xs">
-                            <span className="text-slate-500 dark:text-slate-400 font-semibold">{t.source}</span>
-                            <span className="font-black text-slate-900 dark:text-white">{t.val}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Top Selling Products */}
-                  <TopProductsTable 
-                    products={products} 
-                    onSeeAll={() => setActiveTab('shop')} 
-                  />
-                </div>
-
-                {/* Sidebar Column: Categories Breakdown & Live Feed */}
-                <div className="lg:col-span-3 space-y-6">
-                  {/* Category Sales Donut Bento */}
-                  <div className="glass-panel rounded-3xl p-6 shadow-sm space-y-5">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-extrabold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-2">
-                        <PieIcon className="w-4 h-4 text-indigo-500" />
-                        Categories
-                      </h3>
-                      <button 
-                        onClick={() => setActiveTab('explore')}
-                        className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 transition-colors flex items-center gap-0.5"
-                      >
-                        View <ChevronRight className="w-3 h-3" />
-                      </button>
-                    </div>
-
-                    <div className="flex flex-col items-center justify-center my-4">
-                      <div className="w-36 h-36 rounded-full border-[12px] border-indigo-500 border-t-purple-500 border-r-sky-400 flex items-center justify-center shadow-lg shadow-indigo-500/10">
-                        <div className="text-center">
-                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-widest block">Gross Total</span>
-                          <span className="text-sm font-black text-slate-900 dark:text-white mt-0.5">{totalSalesNumeric.toFixed(2)} MAD</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2.5 pt-3 border-t border-slate-200/80 dark:border-white/5">
-                      {topCategories.length === 0 ? (
-                        <p className="text-xs text-slate-400 text-center py-2">No category sales recorded yet.</p>
+                {/* Metric Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                  {homeKpis.map((kpi, i) => (
+                    <div
+                      key={i}
+                      className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-zinc-800/80 rounded-xl p-4 flex flex-col justify-between shadow-xs transition-all hover:border-slate-300 dark:hover:border-zinc-700/80"
+                    >
+                      <span className="text-xs font-medium text-slate-500 dark:text-zinc-400">{kpi.title}</span>
+                      {isLoadingMetrics ? (
+                        <div className="h-6 w-24 bg-slate-100 dark:bg-zinc-800 rounded-md animate-pulse mt-2.5" />
                       ) : (
-                        topCategories.map((cat, idx) => (
-                          <div key={cat.name} className="flex items-center justify-between text-xs">
-                            <div className="flex items-center gap-2">
-                              <span className={`w-2.5 h-2.5 rounded-full ${idx % 2 === 0 ? 'bg-indigo-500' : 'bg-purple-400'}`} />
-                              <span className="text-slate-500 dark:text-slate-400 font-semibold">{cat.name}</span>
-                            </div>
-                            <span className="font-black text-slate-900 dark:text-white">{cat.amount}</span>
-                          </div>
-                        ))
+                        <div className="text-xl font-bold text-slate-900 dark:text-zinc-100 mt-2 tracking-tight">{kpi.val}</div>
                       )}
                     </div>
-                  </div>
+                  ))}
+                </div>
 
-                  {/* Real-Time Live Order Stream */}
-                  <div className="glass-panel rounded-3xl p-6 shadow-sm space-y-5">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-extrabold text-xs uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-2">
-                        <Zap className="w-4 h-4 text-indigo-500" /> Live Stream
-                      </h3>
-                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/30 px-2 py-0.5 rounded-full">
-                        Realtime
-                      </span>
-                    </div>
+                {/* Main Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Left Column */}
+                  <div className="lg:col-span-8 space-y-6">
+                    <RevenueChart data={revenueChartData} />
 
-                    <div className="space-y-3">
-                      {orders.length === 0 ? (
-                        <p className="text-xs text-slate-400 text-center py-4">No recent orders recorded.</p>
-                      ) : (
-                        orders.slice(0, 5).map((ord) => (
-                          <div key={ord.id} className="flex items-center justify-between text-xs p-3 rounded-2xl glass-panel-interactive">
-                            <div className="flex items-center gap-3">
-                              <img 
-                                src={ord.productImage} 
-                                alt={ord.productName} 
-                                className="w-9 h-9 rounded-xl object-cover border border-slate-200 dark:border-white/10 shrink-0"
-                              />
-                              <div>
-                                <p className="font-bold text-slate-900 dark:text-white line-clamp-1">{ord.customerName}</p>
-                                <p className="text-[10px] text-slate-400 dark:text-slate-500 line-clamp-1">{ord.productName}</p>
+                    {/* Split Telemetry Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                      {/* Recent Orders Feed */}
+                      <div className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-zinc-800/80 rounded-xl p-5 space-y-4 shadow-xs">
+                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800/60 pb-3">
+                          <div className="flex items-center gap-2">
+                            <Zap className="w-4 h-4 text-indigo-500" />
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-zinc-100">Recent Orders</h3>
+                          </div>
+                          <button
+                            onClick={() => setActiveTab('chat')}
+                            className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-1"
+                          >
+                            All Orders <ArrowUpRight className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="space-y-2.5">
+                          {isLoadingOrders ? (
+                            [...Array(3)].map((_, i) => (
+                              <div key={i} className="h-14 rounded-lg bg-slate-100 dark:bg-zinc-900/60 animate-pulse" />
+                            ))
+                          ) : orders.length === 0 ? (
+                            <div className="py-8 text-center text-xs text-slate-400 dark:text-zinc-500 flex flex-col items-center justify-center gap-1.5">
+                              <Clock className="w-5 h-5 opacity-40" />
+                              <span>No live orders recorded yet</span>
+                            </div>
+                          ) : (
+                            orders.slice(0, 4).map((ord) => (
+                              <div
+                                key={ord.id}
+                                className="group flex items-center justify-between p-3 rounded-lg bg-slate-50/70 dark:bg-zinc-900/40 border border-slate-200/60 dark:border-zinc-800/60 hover:border-slate-300 dark:hover:border-zinc-700 transition-all"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <img
+                                    src={ord.productImage}
+                                    alt={ord.productName}
+                                    className="w-9 h-9 rounded-md object-cover border border-slate-200 dark:border-zinc-800 shrink-0 group-hover:scale-105 transition-transform"
+                                  />
+                                  <div className="space-y-0.5">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-slate-900 dark:text-zinc-100 text-xs">#{ord.id.slice(-5).toUpperCase()}</span>
+                                      <span className={`px-1.5 py-0.2 text-[10px] rounded-md font-medium border ${
+                                        ord.status === 'Delivered'
+                                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                                          : ord.status === 'Processing'
+                                          ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20'
+                                          : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                                      }`}>
+                                        {ord.status}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 dark:text-zinc-400 line-clamp-1">{ord.customerName} • {ord.productName}</p>
+                                  </div>
+                                </div>
+                                <span className="font-semibold text-slate-900 dark:text-zinc-100 text-xs shrink-0 ml-2">
+                                  {ord.amount.toFixed(2)} MAD
+                                </span>
                               </div>
-                            </div>
-                            <span className="font-black text-indigo-600 dark:text-indigo-400 shrink-0 ml-2">{ord.amount} MAD</span>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Top Categories by Revenue */}
+                      <div className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-zinc-800/80 rounded-xl p-5 space-y-4 shadow-xs">
+                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800/60 pb-3">
+                          <div className="flex items-center gap-2">
+                            <Tag className="w-4 h-4 text-indigo-500" />
+                            <h3 className="text-sm font-semibold text-slate-900 dark:text-zinc-100">Top Categories</h3>
                           </div>
-                        ))
-                      )}
+                          <span className="text-[10px] text-slate-400 dark:text-zinc-500">By revenue</span>
+                        </div>
+
+                        {topCategories.length === 0 ? (
+                          <div className="py-8 text-center text-xs text-slate-400 dark:text-zinc-500">
+                            No category sales yet.
+                          </div>
+                        ) : (
+                          <div className="space-y-2.5 pt-1">
+                            {(() => {
+                              const maxTotal = Math.max(...topCategories.map((c) => c.numericTotal), 1);
+                              return topCategories
+                                .slice()
+                                .sort((a, b) => b.numericTotal - a.numericTotal)
+                                .slice(0, 5)
+                                .map((cat) => (
+                                  <div key={cat.name} className="space-y-1.5">
+                                    <div className="flex items-center justify-between text-xs font-medium">
+                                      <span className="text-slate-700 dark:text-zinc-300">{cat.name}</span>
+                                      <span className="font-semibold text-slate-900 dark:text-zinc-100">{cat.amount}</span>
+                                    </div>
+                                    <div className="w-full h-1.5 bg-slate-100 dark:bg-zinc-900 rounded-full overflow-hidden">
+                                      <div
+                                        className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+                                        style={{ width: `${(cat.numericTotal / maxTotal) * 100}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                ));
+                            })()}
+                          </div>
+                        )}
+                      </div>
+
                     </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
 
-            {/* TAB 2: Analytics View */}
-            {activeTab === 'analytics' && (
-              <motion.div
-                key="analytics-tab"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                className="space-y-6"
-              >
-                <h2 className="text-2xl font-black text-slate-900 dark:text-white">Analytics & Revenue Trajectory</h2>
-                <RevenueChart data={revenueChartData} />
-              </motion.div>
-            )}
-
-            {/* TAB 3: Catalog Grid */}
-            {activeTab === 'explore' && (
-              <motion.div
-                key="explore-tab"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -15 }}
-                className="space-y-6"
-              >
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 glass-panel p-4 rounded-3xl">
-                  <div className="relative w-full sm:w-80">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                    <input
-                      type="text"
-                      placeholder="Search catalog products..."
-                      value={exploreSearch}
-                      onChange={(e) => setExploreSearch(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2 bg-slate-100/80 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500"
+                    <TopProductsTable
+                      products={rankedTopProducts}
+                      onSeeAll={() => setActiveTab('shop')}
                     />
                   </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-                    {exploreCategories.map((cat) => (
-                      <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        key={cat}
-                        onClick={() => setExploreCategory(cat)}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                          exploreCategory === cat
-                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                            : 'glass-panel text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                        }`}
-                      >
-                        {cat}
-                      </motion.button>
-                    ))}
+                  {/* Right Column */}
+                  <div className="lg:col-span-4 space-y-6">
+
+                    {/* Store Quick Operations */}
+                    <div className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-zinc-800/80 rounded-xl p-5 space-y-3 shadow-xs">
+                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-indigo-500" /> Quick Operations
+                      </h3>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => setActiveTab('shop')}
+                          className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-zinc-900/60 border border-slate-200/60 dark:border-zinc-800/60 hover:bg-slate-100 dark:hover:bg-zinc-800/60 text-xs font-medium text-slate-800 dark:text-zinc-200 transition-colors cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4 text-indigo-500" /> Add Product
+                        </button>
+                        <button
+                          onClick={() => setActiveTab('chat')}
+                          className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-zinc-900/60 border border-slate-200/60 dark:border-zinc-800/60 hover:bg-slate-100 dark:hover:bg-zinc-800/60 text-xs font-medium text-slate-800 dark:text-zinc-200 transition-colors cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4 text-emerald-500" /> Create Order
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Featured Items Widget */}
+                    <div className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-zinc-800/80 rounded-xl p-5 space-y-4 shadow-xs">
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800/60 pb-3">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-zinc-400">
+                          {featuredProducts.length > 0 ? 'Featured Items' : 'Catalog Preview'}
+                        </h3>
+                        <button onClick={() => setActiveTab('explore')} className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer flex items-center gap-0.5">
+                          Catalog <ArrowUpRight className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {isLoadingProducts ? (
+                          [...Array(3)].map((_, i) => (
+                            <div key={i} className="h-12 rounded-lg bg-slate-100 dark:bg-zinc-900/60 animate-pulse" />
+                          ))
+                        ) : featuredDisplay.length === 0 ? (
+                          <div className="py-6 text-center text-xs text-slate-400 dark:text-zinc-500">
+                            No catalog items available.
+                          </div>
+                        ) : (
+                          featuredDisplay.map((prod, idx) => (
+                            <div
+                              key={prod.id}
+                              className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50/70 dark:bg-zinc-900/40 border border-slate-200/60 dark:border-zinc-800/60 hover:border-slate-300 dark:hover:border-zinc-700 transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="relative">
+                                  <img src={prod.image} alt={prod.name} className="w-10 h-10 rounded-md object-cover border border-slate-200 dark:border-zinc-800 shrink-0" />
+                                  <span className="absolute -top-1.5 -left-1.5 w-4 h-4 bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-full text-[9px] font-bold flex items-center justify-center">
+                                    #{idx + 1}
+                                  </span>
+                                </div>
+                                <div className="space-y-0.5">
+                                  <p className="font-semibold text-slate-900 dark:text-zinc-100 text-xs line-clamp-1">{prod.name}</p>
+                                  <span className="text-[10px] text-slate-500 dark:text-zinc-400">{prod.category}</span>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-semibold text-slate-900 dark:text-zinc-100 text-xs">{prod.price.toFixed(2)} MAD</p>
+                                <p className="text-[10px] text-slate-500 dark:text-zinc-400">{prod.stockCount} in stock</p>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Inventory Warning Box */}
+                    <div className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-zinc-800/80 rounded-xl p-5 space-y-3.5 shadow-xs">
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800/60 pb-3">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5" /> Low Stock Alerts
+                        </h3>
+                        <button onClick={() => setActiveTab('shop')} className="text-xs font-medium text-amber-600 dark:text-amber-400 hover:underline cursor-pointer flex items-center gap-0.5">
+                          Manage <ArrowRight className="w-3 h-3" />
+                        </button>
+                      </div>
+
+                      {isLoadingProducts ? (
+                        <div className="h-10 rounded-lg bg-slate-100 dark:bg-zinc-900/60 animate-pulse" />
+                      ) : lowStockItems.length === 0 ? (
+                        <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
+                          <CheckCircle2 className="w-4 h-4 shrink-0" />
+                          <span>All inventory levels are currently healthy!</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {lowStockItems.slice(0, 3).map((item) => (
+                            <div key={item.id} className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping" />
+                                <span className="font-medium text-slate-800 dark:text-zinc-200 line-clamp-1">{item.name}</span>
+                              </div>
+                              <span className="font-semibold text-amber-600 dark:text-amber-400 shrink-0 ml-2">
+                                {item.stockCount} left
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Order Status Breakdown */}
+                    <div className="bg-white dark:bg-[#121215] border border-slate-200/80 dark:border-zinc-800/80 rounded-xl p-5 space-y-3 shadow-xs">
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800/60 pb-3">
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-zinc-400 flex items-center gap-1.5">
+                          <Activity className="w-3.5 h-3.5 text-indigo-500" /> Order Status
+                        </h3>
+                        <span className="text-[10px] text-slate-400 dark:text-zinc-500">{orders.length} total</span>
+                      </div>
+
+                      {orders.length === 0 ? (
+                        <div className="py-6 text-center text-xs text-slate-400 dark:text-zinc-500">
+                          No orders yet.
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5">
+                          {ORDER_STATUSES.map((status) => {
+                            const count = orderStatusCounts[status];
+                            const pct = orders.length > 0 ? (count / orders.length) * 100 : 0;
+                            return (
+                              <div key={status} className="space-y-1.5">
+                                <div className="flex items-center justify-between text-xs font-medium">
+                                  <span className="text-slate-700 dark:text-zinc-300 flex items-center gap-2">
+                                    <span className={`w-2 h-2 rounded-full ${STATUS_COLORS[status]}`} /> {status}
+                                  </span>
+                                  <span className="text-slate-500 dark:text-zinc-400">{count}</span>
+                                </div>
+                                <div className="w-full h-1.5 bg-slate-100 dark:bg-zinc-900 rounded-full overflow-hidden">
+                                  <div className={`h-full ${STATUS_COLORS[status]} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
                   </div>
                 </div>
+              </motion.div>
+            )}
 
-                {filteredExploreProducts.length === 0 ? (
-                  <div className="py-16 text-center text-slate-400">
-                    <Package className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    No products found matching filters.
+            {/* TAB 2: ANALYTICS */}
+            {activeTab === 'analytics' && (
+              <motion.div
+                key="analytics-tab"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+              >
+                <AnalyticsView
+                  revenueData={revenueChartData}
+                  topCategories={topCategories}
+                  orders={orders}
+                />
+              </motion.div>
+            )}
+
+            {/* TAB 3: CATALOG GRID */}
+            {activeTab === 'explore' && (
+              <motion.div
+                key="explore-tab"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+              >
+                {isLoadingProducts ? (
+                  <div className="py-16 text-center text-slate-400 dark:text-zinc-500 text-xs">
+                    <Package className="w-8 h-8 mx-auto mb-2 opacity-40 animate-pulse" />
+                    Loading catalog…
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {filteredExploreProducts.map((product) => (
-                      <motion.div 
-                        whileHover={{ y: -4 }}
-                        key={product.id} 
-                        className="glass-panel rounded-3xl p-4 space-y-3 shadow-sm"
-                      >
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="w-full h-48 rounded-2xl object-cover border border-slate-200/80 dark:border-white/10"
-                        />
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                            {product.category}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            product.stockStatus === 'In Stock'
-                              ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
-                              : 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400'
-                          }`}>
-                            {product.stockStatus}
-                          </span>
-                        </div>
-                        <h3 className="font-bold text-slate-900 dark:text-white text-sm line-clamp-1">{product.name}</h3>
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-200/80 dark:border-white/5">
-                          <span className="text-xs text-slate-400">{product.stockCount} in stock</span>
-                          <span className="text-sm font-black text-slate-900 dark:text-white">{product.price.toFixed(2)} MAD</span>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
+                  <CatalogExplorer products={products} />
                 )}
               </motion.div>
             )}
 
-            {/* TAB 4: Products Table View */}
+            {/* TAB 4: PRODUCTS TABLE */}
             {activeTab === 'shop' && (
               <motion.div key="shop-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <ProductsView
@@ -646,29 +709,34 @@ export function App() {
               </motion.div>
             )}
 
-            {/* TAB 5: Orders View */}
+            {/* TAB 5: ORDERS FEED */}
             {activeTab === 'chat' && (
               <motion.div key="orders-tab" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <OrdersView orders={orders} onUpdateOrderStatus={handleUpdateOrderStatus} />
+                <OrdersView
+                  orders={orders}
+                  products={products}
+                  onUpdateOrderStatus={handleUpdateOrderStatus}
+                  onCreateOrder={handleCreateManualOrder}
+                />
               </motion.div>
             )}
 
-            {/* TAB 6: Settings View */}
+            {/* TAB 6: SETTINGS */}
             {activeTab === 'settings' && <SettingsView />}
 
-            {/* TAB 7: Support View */}
+            {/* TAB 7: SUPPORT */}
             {activeTab === 'help' && <SupportView />}
 
-            {/* TAB 8: Team Access View */}
+            {/* TAB 8: TEAM ACCESS */}
             {activeTab === 'users' && <TeamAccessView />}
 
-            {/* TAB 9: Trash View */}
+            {/* TAB 9: TRASH BIN */}
             {activeTab === 'trash' && (
               <TrashView
                 deletedProducts={deletedProducts}
                 onRestoreProduct={handleRestoreProduct}
                 onPermanentDeleteProduct={handlePermanentDeleteProduct}
-                onClearTrash={handleClearTrash}
+                onEmptyTrash={handleClearTrash}
               />
             )}
           </AnimatePresence>

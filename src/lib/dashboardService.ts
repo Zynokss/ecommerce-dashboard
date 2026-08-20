@@ -13,64 +13,57 @@ export interface LiveStatsResponse {
   metrics: MetricCardData[];
   topCategories: CategoryBreakdown[];
   chartData: RevenueChartPoint[];
-  conversionFunnel?: {
-    views: number;
-    carts: number;
-    checkout: number;
-    completed: number;
-  };
+  totalVisitors: number;
+  conversionRate: string;
 }
 
 export async function fetchLiveStats(): Promise<LiveStatsResponse> {
   const defaultMetrics: MetricCardData[] = [
-    { title: 'TOTAL SALES', value: '0.00 MAD', change: '+0%', isPositive: true, timeframe: 'vs last week', bgColor: 'mint' },
-    { title: 'TOTAL ORDERS', value: '0', change: '+0%', isPositive: true, timeframe: 'vs last week', bgColor: 'sky' },
-    { title: 'TOTAL VISITORS', value: '0', change: '+0%', isPositive: true, timeframe: 'vs last week', bgColor: 'white' },
+    { title: 'Total Sales', value: '0.00 MAD', change: '+0%', isPositive: true, timeframe: 'vs last week', bgColor: 'mint' },
+    { title: 'Total Orders', value: '0', change: '+0%', isPositive: true, timeframe: 'vs last week', bgColor: 'sky' },
+    { title: 'Registered Users', value: '0', change: '+0%', isPositive: true, timeframe: 'vs last week', bgColor: 'white' },
   ];
 
   try {
-    const res = await fetch(`${API_BASE}/admin/stats`);
+    const res = await fetch(`${API_BASE}/admin/stats`, { credentials: 'include' });
     if (!res.ok) throw new Error('Failed to fetch stats');
 
     const data = await res.json();
+    const stats = data.stats || {};
 
     const metrics: MetricCardData[] = [
-      { 
-        title: 'TOTAL SALES', 
-        value: `${Number(data.revenue || 0).toFixed(2)} MAD`, 
-        change: '+3.34%', 
-        isPositive: true, 
-        timeframe: 'vs last week', 
-        bgColor: 'mint' 
+      {
+        title: 'Total Sales',
+        value: `${Number(stats.totalRevenue || 0).toFixed(2)} MAD`,
+        change: '+0%',
+        isPositive: true,
+        timeframe: 'all time',
+        bgColor: 'mint',
       },
-      { 
-        title: 'TOTAL ORDERS', 
-        value: Number(data.deals || 0).toLocaleString(), 
-        change: '-2.89%', 
-        isPositive: false, 
-        timeframe: 'vs last week', 
-        bgColor: 'sky' 
+      {
+        title: 'Total Orders',
+        value: Number(stats.totalOrders || 0).toLocaleString(),
+        change: '+0%',
+        isPositive: true,
+        timeframe: 'all time',
+        bgColor: 'sky',
       },
-      { 
-        title: 'TOTAL VISITORS', 
-        value: Number(data.customers || 0).toLocaleString(), 
-        change: '+8.02%', 
-        isPositive: true, 
-        timeframe: 'vs last week', 
-        bgColor: 'white' 
+      {
+        title: 'Registered Users',
+        value: Number(stats.totalVisitors || 0).toLocaleString(),
+        change: '+0%',
+        isPositive: true,
+        timeframe: 'all time',
+        bgColor: 'white',
       },
     ];
 
     return {
       metrics,
-      topCategories: Array.isArray(data.topCategories) ? data.topCategories : [],
-      chartData: Array.isArray(data.chartData) ? data.chartData : [],
-      conversionFunnel: data.conversionFunnel || {
-        views: 25000,
-        carts: 12000,
-        checkout: 8500,
-        completed: Number(data.deals || 0),
-      },
+      topCategories: Array.isArray(stats.topCategories) ? stats.topCategories : [],
+      chartData: Array.isArray(stats.chartData) ? stats.chartData : [],
+      totalVisitors: Number(stats.totalVisitors || 0),
+      conversionRate: String(stats.conversionRate || '0%'),
     };
   } catch (err) {
     console.error('Failed to load live stats:', err);
@@ -78,6 +71,8 @@ export async function fetchLiveStats(): Promise<LiveStatsResponse> {
       metrics: defaultMetrics,
       topCategories: [],
       chartData: [],
+      totalVisitors: 0,
+      conversionRate: '0%',
     };
   }
 }
@@ -89,16 +84,16 @@ export async function fetchLiveMetrics(): Promise<MetricCardData[]> {
 
 export async function fetchLiveOrders(): Promise<Order[]> {
   try {
-    const res = await fetch(`${API_BASE}/orders`);
+    const res = await fetch(`${API_BASE}/orders`, { credentials: 'include' });
     if (!res.ok) throw new Error('Failed to fetch orders');
 
     const data = await res.json();
     const rawOrders = Array.isArray(data.orders) ? data.orders : (Array.isArray(data) ? data : []);
 
-    return rawOrders.map((dbOrder: any): Order => {
+    return rawOrders.map((dbOrder: any, orderIdx: number): Order => {
       const items: OrderItem[] = Array.isArray(dbOrder.items)
-        ? dbOrder.items.map((it: any): OrderItem => ({
-            id: String(it.id || Date.now()),
+        ? dbOrder.items.map((it: any, itemIdx: number): OrderItem => ({
+            id: String(it.id || `${dbOrder.id || 'ord'}-item-${itemIdx}`),
             productId: String(it.productId || ''),
             selectedSize: String(it.selectedSize || 'S'),
             selectedColor: it.selectedColor ? String(it.selectedColor) : undefined,
@@ -128,10 +123,10 @@ export async function fetchLiveOrders(): Promise<Order[]> {
       const customerName = `${dbOrder.firstName || ''} ${dbOrder.lastName || ''}`.trim() || String(dbOrder.email || 'Customer');
 
       return {
-        id: String(dbOrder.id ?? ''),
+        id: String(dbOrder.id ?? `order-${orderIdx}`),
         customerName,
         customerAvatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-          String(dbOrder.email || dbOrder.id || 'user')
+          String(dbOrder.email || dbOrder.id || `user-${orderIdx}`)
         )}`,
         email: String(dbOrder.email || 'No email'),
         phone: String(dbOrder.phone || dbOrder.user?.phone || 'N/A'),
@@ -168,11 +163,12 @@ export async function updateOrderStatusInDb(orderId: string, uiStatus: Order['st
 
   const res = await fetch(`${API_BASE}/orders`, {
     method: 'PATCH',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
+    body: JSON.stringify({
       orderId: orderId,
       id: orderId,
-      status: dbStatus 
+      status: dbStatus
     }),
   });
 

@@ -1,20 +1,26 @@
-// --- Core Analytics & Overview Metrics ---
+// src/types.ts
+
 export interface MetricCardData {
   title: string;
   value: string;
-  change: string; // e.g., "+30%" or "-15%"
+  change: string;
   isPositive: boolean;
-  timeframe: string; // e.g., "This month"
+  timeframe: string;
   bgColor: 'mint' | 'sky' | 'white';
 }
 
 export interface RevenueChartPoint {
-  month: string;
-  firstHalf: number;
-  topGross: number;
+  date: string;
+  revenue: number;
 }
 
-// --- Product & Inventory Management ---
+export interface ProductColorObject {
+  name: string;
+  hex: string;
+}
+
+export type ProductColor = string | ProductColorObject;
+
 export interface Product {
   id: string;
   name: string;
@@ -22,14 +28,16 @@ export interface Product {
   price: number;
   description?: string;
   image: string;
+  images?: string[];
   stockCount: number;
   stockStatus: 'In Stock' | 'Low Stock' | 'Out of Stock';
   totalSales: number;
   sizes?: string[];
-  colors?: string[]; // Optional color variant array (e.g., ['Pitch Black', 'Studio Gray'])
+  colors?: ProductColor[];
+  featured?: boolean;
+  brand?: string;
 }
 
-// --- Order Item Model ---
 export interface OrderItem {
   id: string;
   productId: string;
@@ -45,7 +53,6 @@ export interface OrderItem {
   };
 }
 
-// --- Order & Fulfillment Management ---
 export interface Order {
   id: string;
   customerName: string;
@@ -65,35 +72,21 @@ export interface Order {
   items: OrderItem[];
 }
 
-// --- Customer Management (CRM) ---
 export interface Customer {
   id: string;
   name: string;
+  email: string;
+  phone?: string;
   avatar: string;
   purchasesCount: number;
-  totalSpent: number; // Lifetime Value (LTV)
-  country: string;
-  countryCode: string; // e.g., 'US', 'CA', 'AU'
+  totalSpent: number;
+  city: string;
 }
 
-// --- Country Sales Data ---
-export interface CountrySales {
-  country: string;
-  code: string; // ISO 2-letter code for flags
-  totalAmount: string;
-  salesCount: string;
-  trend: 'up' | 'down';
-}
-
-// --- Client Integration Layer ---
-export type StoreType = 'shopify' | 'woocommerce' | 'custom_postgres' | 'mock';
-
-export interface StoreIntegration {
+export interface CouponCode {
   id: string;
-  storeName: string;
-  type: StoreType;
-  isConnected: boolean;
-  apiKey?: string;
-  connectionUrl?: string;
-  lastSyncedAt?: string;
+  code: string;
+  discountPercentage: number;
+  active: boolean;
+  usageCount: number;
 }

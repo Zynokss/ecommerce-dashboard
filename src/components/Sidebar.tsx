@@ -12,7 +12,8 @@ import {
   Trash2, 
   LogOut,
   X,
-  Sparkles
+  Zap,
+  ChevronRight
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -54,57 +55,75 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Mobile Backdrop */}
+      {/* Mobile Backdrop Overlay */}
       {isOpen && (
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-40 md:hidden"
+          className="fixed inset-0 bg-black/80 backdrop-blur-md z-40 md:hidden"
         />
       )}
 
       <aside className={`
         fixed md:static inset-y-0 left-0 z-50
-        w-64 glass-panel border-r border-slate-200/80 dark:border-white/10
-        flex flex-col justify-between shrink-0 min-h-screen
-        transition-transform duration-300 ease-in-out
+        w-64 bg-[#1c202c]/95 dark:bg-[#0e1015]/95 backdrop-blur-2xl
+        border-r border-slate-700/50 dark:border-white/[0.08]
+        flex flex-col justify-between shrink-0 min-h-screen select-none
+        transition-colors duration-300 ease-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
-        <div className="p-5">
-          {/* Brand Header */}
-          <div className="flex items-center justify-between mb-8 px-2">
-            <div className="flex items-center gap-3">
-              <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-indigo-500/25">
-                Z
-                <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+        <div className="p-4 space-y-6">
+          {/* Executive Brand Logo Header */}
+          <div className="flex items-center justify-between px-1 pt-1 mb-2">
+            <div className="flex items-center gap-3 cursor-pointer group">
+              <div className="relative w-9 h-9 rounded-xl bg-[#12141d] dark:bg-[#08090d] border border-[#7c5cfc]/40 flex items-center justify-center shadow-[0_0_20px_rgba(124,92,252,0.35)] group-hover:scale-105 group-hover:border-[#7c5cfc]/70 transition-all duration-300">
+                <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 transform -rotate-3">
+                  <path
+                    d="M13 2L3 14H11.5L9.5 22L21 10H12.5L13 2Z"
+                    fill="url(#zyn-bolt-gradient)"
+                  />
+                  <defs>
+                    <linearGradient id="zyn-bolt-gradient" x1="3" y1="2" x2="21" y2="22" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%" stopColor="#f472b6" />
+                      <stop offset="35%" stopColor="#c084fc" />
+                      <stop offset="70%" stopColor="#7c5cfc" />
+                      <stop offset="100%" stopColor="#3b82f6" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-[#1c202c] dark:border-[#0e1015] shadow-[0_0_8px_#34d399]" />
+              </div>
+              
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-slate-100 dark:text-white text-sm tracking-tight">
+                    Zynboard
+                  </span>
+                  <span className="px-1.5 py-0.5 text-[9px] font-mono font-bold text-[#7c5cfc] bg-[#7c5cfc]/15 border border-[#7c5cfc]/30 rounded-md">
+                    v2.0
+                  </span>
+                </div>
+                <span className="text-[10px] font-medium text-slate-400 dark:text-slate-400">
+                  Store Management OS
                 </span>
               </div>
-              <div>
-                <h1 className="font-black text-slate-900 dark:text-white text-base tracking-tight flex items-center gap-1.5">
-                  Zynboard
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
-                </h1>
-                <p className="text-[10px] font-extrabold tracking-widest uppercase text-indigo-600 dark:text-indigo-400">
-                  STUDIO OS v2.0
-                </p>
-              </div>
             </div>
+
             <button 
               onClick={onClose}
-              className="md:hidden p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
+              className="md:hidden p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {/* Navigation Items */}
           <div className="space-y-6">
+            {/* Main Menu */}
             <div>
-              <p className="px-3 text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
+              <p className="px-2 text-[10px] font-mono font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2.5">
                 Main Menu
               </p>
               <nav className="space-y-1">
@@ -112,34 +131,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   const Icon = item.icon;
                   const isActive = activeTab === item.id;
                   return (
-                    <motion.button
+                    <button
                       key={item.id}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.95 }}
                       onClick={() => handleTabClick(item.id)}
-                      className={`relative w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      className={`relative w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer group ${
                         isActive
-                          ? 'text-indigo-600 dark:text-white font-extrabold'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-white/5'
+                          ? 'text-white'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-700/40 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/[0.04]'
                       }`}
                     >
                       {isActive && (
                         <motion.div
-                          layoutId="activeTabPill"
-                          className="absolute inset-0 bg-indigo-50 dark:bg-indigo-600/20 border border-indigo-200 dark:border-indigo-500/30 rounded-xl shadow-xs"
-                          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                          layoutId="activeTabGlow"
+                          className="absolute inset-0 bg-gradient-to-r from-[#7c5cfc]/30 to-indigo-500/20 dark:from-[#7c5cfc]/25 dark:to-indigo-500/15 border border-[#7c5cfc]/40 rounded-xl shadow-[0_0_15px_rgba(124,92,252,0.2)]"
+                          transition={{ type: "spring", stiffness: 380, damping: 28 }}
                         />
                       )}
-                      <Icon className={`w-4 h-4 z-10 transition-colors ${isActive ? 'text-indigo-600 dark:text-indigo-400' : ''}`} />
-                      <span className="z-10">{item.label}</span>
-                    </motion.button>
+                      
+                      {isActive && (
+                        <motion.span 
+                          layoutId="activeTabAccent"
+                          className="absolute left-0 w-1 h-5 bg-[#7c5cfc] rounded-r-full shadow-[0_0_10px_#7c5cfc]" 
+                        />
+                      )}
+
+                      <Icon className={`w-4 h-4 z-10 transition-colors duration-200 ${
+                        isActive ? 'text-[#7c5cfc]' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-200 dark:group-hover:text-slate-300'
+                      }`} />
+                      <span className="z-10 tracking-wide">{item.label}</span>
+                    </button>
                   );
                 })}
               </nav>
             </div>
 
+            {/* Management Section */}
             <div>
-              <p className="px-3 text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">
+              <p className="px-2 text-[10px] font-mono font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2.5">
                 Management
               </p>
               <nav className="space-y-1">
@@ -147,34 +175,43 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   const Icon = item.icon;
                   const isActive = activeTab === item.id;
                   return (
-                    <motion.button
+                    <button
                       key={item.id}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.95 }}
                       onClick={() => handleTabClick(item.id)}
-                      className={`relative w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      className={`relative w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer group ${
                         isActive
-                          ? 'text-indigo-600 dark:text-white font-extrabold'
-                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-white/5'
+                          ? 'text-white'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-700/40 dark:text-slate-400 dark:hover:text-white dark:hover:bg-white/[0.04]'
                       }`}
                     >
                       {isActive && (
                         <motion.div
-                          layoutId="activeTabPill"
-                          className="absolute inset-0 bg-indigo-50 dark:bg-indigo-600/20 border border-indigo-200 dark:border-indigo-500/30 rounded-xl shadow-xs"
-                          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                          layoutId="activeTabGlow"
+                          className="absolute inset-0 bg-gradient-to-r from-[#7c5cfc]/30 to-indigo-500/20 dark:from-[#7c5cfc]/25 dark:to-indigo-500/15 border border-[#7c5cfc]/40 rounded-xl shadow-[0_0_15px_rgba(124,92,252,0.2)]"
+                          transition={{ type: "spring", stiffness: 380, damping: 28 }}
                         />
                       )}
+
+                      {isActive && (
+                        <motion.span 
+                          layoutId="activeTabAccent"
+                          className="absolute left-0 w-1 h-5 bg-[#7c5cfc] rounded-r-full shadow-[0_0_10px_#7c5cfc]" 
+                        />
+                      )}
+
                       <div className="flex items-center gap-3 z-10">
-                        <Icon className={`w-4 h-4 transition-colors ${isActive ? 'text-indigo-600 dark:text-indigo-400' : ''}`} />
-                        <span>{item.label}</span>
+                        <Icon className={`w-4 h-4 transition-colors duration-200 ${
+                          isActive ? 'text-[#7c5cfc]' : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-200 dark:group-hover:text-slate-300'
+                        }`} />
+                        <span className="tracking-wide">{item.label}</span>
                       </div>
+
                       {item.badge !== undefined && item.badge > 0 && (
-                        <span className="z-10 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-xs">
+                        <span className="z-10 px-2 py-0.5 rounded-full text-[10px] font-mono font-black bg-rose-500 text-white shadow-[0_0_10px_rgba(244,63,94,0.4)] animate-pulse">
                           {item.badge}
                         </span>
                       )}
-                    </motion.button>
+                    </button>
                   );
                 })}
               </nav>
@@ -182,17 +219,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-slate-200/80 dark:border-white/10">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.95 }}
+        {/* Footer Promo & Session Control */}
+        <div className="p-4 space-y-3 border-t border-slate-700/50 dark:border-white/[0.08]">
+          <div className="relative overflow-hidden rounded-2xl bg-[#121520] dark:bg-[#10131e] border border-slate-700/60 dark:border-white/[0.08] p-3.5 space-y-2 group">
+            <div className="absolute -top-10 -right-10 w-24 h-24 bg-[#7c5cfc]/15 rounded-full blur-xl group-hover:bg-[#7c5cfc]/25 transition-all duration-500" />
+            <div className="flex items-center justify-between text-slate-100 dark:text-white font-bold text-xs relative z-10">
+              <span className="flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-[#7c5cfc]" /> Pro Sync Engine
+              </span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
+            </div>
+            <p className="text-[11px] text-slate-400 dark:text-slate-400 relative z-10 leading-relaxed">
+              Neon PostgreSQL engine online with low latency response.
+            </p>
+          </div>
+
+          <button
             onClick={onLogout}
-            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all cursor-pointer"
+            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 dark:text-slate-400 dark:hover:text-rose-400 dark:hover:bg-rose-500/10 transition-all duration-200 cursor-pointer group border border-transparent hover:border-rose-500/20"
           >
-            <LogOut className="w-4 h-4" />
-            <span>Sign Out Session</span>
-          </motion.button>
+            <div className="flex items-center gap-2.5">
+              <LogOut className="w-4 h-4 text-slate-400 group-hover:text-rose-500 transition-colors" />
+              <span>Sign Out Session</span>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+          </button>
         </div>
       </aside>
     </>
